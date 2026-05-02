@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { Zap, Check, X, Loader2 } from 'lucide-react';
+import { Zap, Check, X, Loader2, Sparkles, Brain, BarChart3, Target, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { apiCall } from '@/hooks/useApi';
 import { toast } from 'sonner';
@@ -12,14 +12,15 @@ interface ProcessingScreenProps {
 }
 
 const ANALYSIS_STEPS = [
-  'Extracting bill data via OCR...',
-  'Identifying tariff structure...',
-  'Analyzing consumption patterns...',
-  'Detecting peak usage windows...',
-  'Generating savings recommendations...',
+  { text: 'Extracting bill data via OCR...', icon: FileCheck },
+  { text: 'Identifying tariff structure...', icon: BarChart3 },
+  { text: 'Analyzing consumption patterns...', icon: Brain },
+  { text: 'Detecting peak usage windows...', icon: Target },
+  { text: 'Generating savings recommendations...', icon: Sparkles },
 ];
 
-// Demo result for testing
+const MIN_DISPLAY_TIME_MS = 5000; // Minimum 5 seconds display
+
 const DEMO_RESULT = {
   effectiveRate: 9.2,
   effectiveRateCurrency: 'INR',
@@ -30,17 +31,43 @@ const DEMO_RESULT = {
   monthlySavingsEstimate: 1800,
   annualSavingsEstimate: 21600,
   potentialSavingsPct: 23,
+  currentBill: 7800,
+  optimizedBill: 6000,
+  peakWasteHours: 4.2,
   topIssues: [
-    { title: 'Above Average Consumption', description: 'Your usage is 34% higher than similar households in your region.', severity: 'high' },
-    { title: 'High Effective Rate', description: 'You are paying ₹9.2/unit vs regional average of ₹8.5/unit.', severity: 'medium' },
-    { title: 'Peak Hour Usage', description: 'Heavy appliances running during 6–10pm peak window.', severity: 'medium' },
+    { title: 'High usage during peak hours (6–9 PM)', description: 'Heavy appliances running during expensive peak window.', severity: 'high' },
+    { title: 'Idle devices consuming 340W standby', description: 'Multiple devices left on standby mode.', severity: 'high' },
+    { title: 'AC running at suboptimal temperature', description: 'AC set below 24°C increases consumption by 6% per degree.', severity: 'medium' },
+    { title: 'Old refrigerator model detected', description: 'Older models consume 30-40% more energy.', severity: 'medium' },
+    { title: 'No solar optimization', description: 'Peak usage doesn\'t align with solar generation hours.', severity: 'low' },
   ],
   recommendations: [
-    'Set AC temperature to 24°C — each degree lower adds 6% to consumption',
-    'Shift washing machine and water heater use to before 6am or after 10pm',
-    'Replace tube lights with LED — saves ₹200–400/month',
-    'Unplug desktop and monitor when not in use — saves ₹150/month',
-    'Check refrigerator door seal — worn seals increase consumption by 15%',
+    { text: 'Set AC to 24°C (save ₹400/mo)', icon: '❄️' },
+    { text: 'Use smart plugs for idle devices', icon: '🔌' },
+    { text: 'Shift heavy loads to off-peak hours', icon: '⏰' },
+    { text: 'Replace old refrigerator with 5-star rated', icon: '⭐' },
+    { text: 'Install LED lighting throughout', icon: '💡' },
+    { text: 'Use ceiling fans with AC to reduce load', icon: '🌀' },
+  ],
+  highConsumptionDevices: [
+    { name: 'Air Conditioner', kwh: 180, percentage: 38 },
+    { name: 'Water Heater', kwh: 95, percentage: 20 },
+    { name: 'Refrigerator', kwh: 72, percentage: 15 },
+    { name: 'Washing Machine', kwh: 45, percentage: 9 },
+  ],
+  monthlyUsage: [
+    { month: 'Jul', current: 320, optimized: 280 },
+    { month: 'Aug', current: 380, optimized: 310 },
+    { month: 'Sep', current: 350, optimized: 290 },
+    { month: 'Oct', current: 290, optimized: 250 },
+    { month: 'Nov', current: 260, optimized: 230 },
+    { month: 'Dec', current: 300, optimized: 260 },
+    { month: 'Jan', current: 340, optimized: 280 },
+    { month: 'Feb', current: 360, optimized: 300 },
+    { month: 'Mar', current: 320, optimized: 270 },
+    { month: 'Apr', current: 280, optimized: 240 },
+    { month: 'May', current: 310, optimized: 260 },
+    { month: 'Jun', current: 290, optimized: 250 },
   ],
   tariffModel: 'flat',
   confidenceLevel: 'high',
@@ -52,11 +79,32 @@ export default function ProcessingScreen({ billId, onComplete, onError }: Proces
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
   const [errorMessage, setErrorMessage] = useState('');
+  const [progress, setProgress] = useState(0);
+  
+  const startTimeRef = useRef(Date.now());
+  const pendingResultRef = useRef<any>(null);
+  const hasCompletedRef = useRef(false);
 
-  // Animate steps
+  // Smooth progress animation
+  useEffect(() => {
+    if (status !== 'processing') return;
+    
+    const interval = setInterval(() => {
+      setProgress(prev => {
+        if (prev >= 95) return prev;
+        const increment = Math.random() * 3 + 1;
+        return Math.min(prev + increment, 95);
+      });
+    }, 200);
+
+    return () => clearInterval(interval);
+  }, [status]);
+
+  // Animate steps with professional timing
   useEffect(() => {
     if (status !== 'processing') return;
 
+    const stepDuration = 900;
     const interval = setInterval(() => {
       setCurrentStep(prev => {
         if (prev < ANALYSIS_STEPS.length) {
@@ -65,10 +113,33 @@ export default function ProcessingScreen({ billId, onComplete, onError }: Proces
         }
         return prev;
       });
-    }, 700);
+    }, stepDuration);
 
     return () => clearInterval(interval);
   }, [status]);
+
+  // Handle completion with minimum delay
+  const handleCompletion = (result: any) => {
+    if (hasCompletedRef.current) return;
+    
+    const elapsed = Date.now() - startTimeRef.current;
+    const remaining = MIN_DISPLAY_TIME_MS - elapsed;
+
+    if (remaining > 0) {
+      pendingResultRef.current = result;
+      setTimeout(() => {
+        if (!hasCompletedRef.current) {
+          hasCompletedRef.current = true;
+          setProgress(100);
+          setTimeout(() => onComplete(result), 300);
+        }
+      }, remaining);
+    } else {
+      hasCompletedRef.current = true;
+      setProgress(100);
+      setTimeout(() => onComplete(result), 300);
+    }
+  };
 
   // Poll backend status
   useEffect(() => {
@@ -80,138 +151,237 @@ export default function ProcessingScreen({ billId, onComplete, onError }: Proces
         
         if (response.status === 'completed') {
           setStatus('completed');
-          onComplete(response.analysisResult);
+          handleCompletion(response.analysisResult);
         } else if (response.status === 'failed') {
           setStatus('failed');
           setErrorMessage(response.error || 'Analysis failed');
         }
       } catch (err: any) {
-        // Don't fail on polling errors, keep trying
         console.error('Polling error:', err);
       }
     };
 
     const interval = setInterval(pollStatus, 3000);
-    pollStatus(); // Initial check
+    pollStatus();
 
     return () => clearInterval(interval);
-  }, [billId, onComplete]);
+  }, [billId]);
 
-  // Handle demo mode
+  // Handle demo mode with minimum delay
   useEffect(() => {
     if (billId === 'demo') {
-      // Wait for all animation steps to complete
       const timer = setTimeout(() => {
         setStatus('completed');
-        onComplete(DEMO_RESULT);
-      }, ANALYSIS_STEPS.length * 700 + 500);
+        handleCompletion(DEMO_RESULT);
+      }, Math.max(MIN_DISPLAY_TIME_MS, ANALYSIS_STEPS.length * 900 + 500));
 
       return () => clearTimeout(timer);
     }
-  }, [billId, onComplete]);
-
-  // Wait for animation to complete when real bill is done
-  useEffect(() => {
-    if (status === 'completed' && currentStep >= ANALYSIS_STEPS.length) {
-      // Animation and data are both ready
-    }
-  }, [status, currentStep]);
+  }, [billId]);
 
   if (status === 'failed') {
     return (
-      <div className="min-h-[60vh] flex items-center justify-center px-4">
-        <div className="text-center">
-          <div className="w-20 h-20 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-6">
-            <X className="w-10 h-10 text-destructive" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Analysis Failed</h2>
-          <p className="text-foreground/60 mb-6">{errorMessage || 'Something went wrong while analyzing your bill'}</p>
-          <Button onClick={onError} variant="outline">
+      <div className="min-h-[70vh] flex items-center justify-center px-4 sm:px-6">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center max-w-md"
+        >
+          <motion.div 
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ type: "spring", delay: 0.2 }}
+            className="w-24 h-24 rounded-full bg-destructive/10 flex items-center justify-center mx-auto mb-8"
+          >
+            <X className="w-12 h-12 text-destructive" />
+          </motion.div>
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3">Analysis Failed</h2>
+          <p className="text-foreground/60 mb-8 text-base">{errorMessage || 'Something went wrong while analyzing your bill'}</p>
+          <Button onClick={onError} variant="outline" size="lg" className="px-8">
             Try Again
           </Button>
-        </div>
+        </motion.div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-[60vh] flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Animated Zap Icon */}
+    <div className="min-h-[70vh] flex items-center justify-center px-4 sm:px-6 py-8">
+      <div className="w-full max-w-lg">
+        {/* Animated Icon */}
         <motion.div
-          animate={{ 
-            scale: [1, 1.1, 1],
-            opacity: [0.5, 1, 0.5],
-          }}
-          transition={{
-            duration: 2,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          className="w-24 h-24 rounded-full gradient-cta flex items-center justify-center mx-auto mb-8 shadow-lg shadow-primary/30"
+          className="relative w-32 h-32 mx-auto mb-10"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
         >
-          <Zap className="w-12 h-12 text-white" />
+          {/* Outer ring */}
+          <motion.div
+            className="absolute inset-0 rounded-full border-4 border-primary/20"
+            animate={{ rotate: 360 }}
+            transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+          />
+          
+          {/* Progress ring */}
+          <svg className="absolute inset-0 w-full h-full -rotate-90">
+            <circle
+              cx="64"
+              cy="64"
+              r="60"
+              fill="none"
+              stroke="hsl(var(--primary))"
+              strokeWidth="4"
+              strokeLinecap="round"
+              strokeDasharray={`${progress * 3.77} 377`}
+              className="transition-all duration-300"
+            />
+          </svg>
+          
+          {/* Center icon */}
+          <motion.div
+            animate={{ 
+              scale: [1, 1.05, 1],
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut",
+            }}
+            className="absolute inset-4 rounded-full gradient-cta flex items-center justify-center shadow-xl shadow-primary/30"
+          >
+            <Zap className="w-12 h-12 text-white" />
+          </motion.div>
+
+          {/* Floating particles */}
+          {[...Array(6)].map((_, i) => (
+            <motion.div
+              key={i}
+              className="absolute w-2 h-2 rounded-full bg-primary/60"
+              initial={{ 
+                x: 64, 
+                y: 64,
+                opacity: 0 
+              }}
+              animate={{ 
+                x: 64 + Math.cos(i * 60 * Math.PI / 180) * 70,
+                y: 64 + Math.sin(i * 60 * Math.PI / 180) * 70,
+                opacity: [0, 1, 0],
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                delay: i * 0.3,
+                ease: "easeOut",
+              }}
+            />
+          ))}
         </motion.div>
 
-        {/* Scan Line Animation */}
-        <div className="glass-card p-8 relative overflow-hidden mb-8">
-          <div className="absolute inset-0 animate-scan-line">
-            <div className="h-full w-1/2 bg-gradient-to-r from-transparent via-primary/20 to-transparent transform -skew-x-12" />
-          </div>
-          
-          <h2 className="text-xl font-bold text-white text-center mb-2 relative z-10">
-            Analyzing your bill...
+        {/* Title */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="text-center mb-10"
+        >
+          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
+            Analyzing Your Bill
           </h2>
-          <p className="text-foreground/50 text-center text-sm relative z-10">
-            {billId === 'demo' ? 'Using demo data' : 'Processing with AI'}
+          <p className="text-foreground/50 text-sm sm:text-base">
+            {billId === 'demo' ? 'Using demo data for preview' : 'AI is processing your electricity bill'}
           </p>
-        </div>
+        </motion.div>
 
-        {/* Checklist */}
-        <div className="space-y-3">
+        {/* Progress bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mb-8"
+        >
+          <div className="flex justify-between text-sm mb-2">
+            <span className="text-foreground/60">Progress</span>
+            <span className="text-primary font-medium">{Math.round(progress)}%</span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <motion.div 
+              className="h-full bg-gradient-to-r from-primary to-accent rounded-full"
+              style={{ width: `${progress}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+        </motion.div>
+
+        {/* Steps checklist */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="glass-card p-6 sm:p-8 space-y-4"
+        >
           {ANALYSIS_STEPS.map((step, index) => {
             const isCompleted = completedSteps.includes(index);
             const isCurrent = index === currentStep && !isCompleted;
-            const isFuture = index > currentStep;
+            const StepIcon = step.icon;
 
             return (
               <motion.div
-                key={step}
+                key={step.text}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.1 }}
+                transition={{ delay: 0.5 + index * 0.1 }}
                 className={`
-                  flex items-center gap-3 p-3 rounded-lg transition-colors
-                  ${isCompleted ? 'bg-accent/10' : isCurrent ? 'bg-primary/10' : 'bg-muted/30'}
+                  flex items-center gap-4 p-4 rounded-xl transition-all duration-300
+                  ${isCompleted 
+                    ? 'bg-accent/10 border border-accent/20' 
+                    : isCurrent 
+                      ? 'bg-primary/10 border border-primary/30' 
+                      : 'bg-muted/20 border border-transparent'
+                  }
                 `}
               >
                 <div className={`
-                  w-6 h-6 rounded-full flex items-center justify-center shrink-0
+                  w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-all duration-300
                   ${isCompleted 
-                    ? 'bg-accent text-accent-foreground' 
+                    ? 'bg-accent text-white' 
                     : isCurrent 
-                      ? 'bg-primary text-primary-foreground animate-pulse' 
-                      : 'bg-muted text-muted-foreground'
+                      ? 'bg-primary text-white' 
+                      : 'bg-muted/50 text-foreground/40'
                   }
                 `}>
                   {isCompleted ? (
-                    <Check className="w-4 h-4" />
+                    <motion.div
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500 }}
+                    >
+                      <Check className="w-5 h-5" />
+                    </motion.div>
                   ) : isCurrent ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <div className="w-2 h-2 rounded-full bg-current" />
+                    <StepIcon className="w-5 h-5" />
                   )}
                 </div>
                 <span className={`
-                  text-sm transition-colors
-                  ${isCompleted || isCurrent ? 'text-white' : 'text-foreground/40'}
+                  text-sm sm:text-base font-medium transition-colors duration-300
+                  ${isCompleted ? 'text-accent' : isCurrent ? 'text-white' : 'text-foreground/40'}
                 `}>
-                  {step}
+                  {step.text}
                 </span>
               </motion.div>
             );
           })}
-        </div>
+        </motion.div>
+
+        {/* Tip */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1 }}
+          className="text-center text-foreground/40 text-sm mt-6"
+        >
+          💡 Tip: Upload clearer bills for more accurate analysis
+        </motion.p>
       </div>
     </div>
   );
