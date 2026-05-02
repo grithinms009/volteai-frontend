@@ -1,112 +1,116 @@
-import { motion } from 'framer-motion';
-import { Zap, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { motion } from "framer-motion";
+import { Zap } from "lucide-react";
 
 interface HeroSectionProps {
   onStartClick: () => void;
 }
 
-export default function HeroSection({ onStartClick }: HeroSectionProps) {
+const HeroSection = ({ onStartClick }: HeroSectionProps) => {
   return (
-    <section className="relative min-h-screen pt-24 pb-16 gradient-mesh overflow-hidden">
-      {/* Animated background elements */}
-      <div className="absolute inset-0 overflow-hidden">
+    <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden pt-16">
+      {/* Mesh gradient background */}
+      <div className="absolute inset-0 gradient-mesh" />
+
+      {/* Floating particles */}
+      {Array.from({ length: 20 }).map((_, i) => (
         <motion.div
-          className="absolute w-[600px] h-[600px] rounded-full bg-primary/10 blur-3xl"
+          key={i}
+          className="absolute w-1 h-1 rounded-full bg-primary/30"
+          style={{
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
           animate={{
-            x: [100, 200, 100],
-            y: [100, 50, 100],
+            y: [0, -30 - Math.random() * 40, 0],
+            x: [0, (Math.random() - 0.5) * 20, 0],
+            opacity: [0, 0.6, 0],
           }}
           transition={{
-            duration: 20,
+            duration: 4 + Math.random() * 4,
             repeat: Infinity,
+            delay: Math.random() * 5,
             ease: "easeInOut",
           }}
-          style={{ top: '10%', left: '10%' }}
         />
+      ))}
+
+      {/* Light streak */}
+      <motion.div
+        className="absolute top-1/3 left-0 right-0 h-px bg-gradient-to-r from-transparent via-primary/20 to-transparent"
+        animate={{ opacity: [0, 0.5, 0] }}
+        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+      />
+
+      {/* Grid overlay */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px)",
+          backgroundSize: "60px 60px",
+        }}
+      />
+
+      <div className="relative z-10 container mx-auto px-4 text-center max-w-3xl">
         <motion.div
-          className="absolute w-[500px] h-[500px] rounded-full bg-accent/10 blur-3xl"
-          animate={{
-            x: [-50, -100, -50],
-            y: [200, 150, 200],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "easeInOut",
-          }}
-          style={{ bottom: '20%', right: '10%' }}
-        />
-      </div>
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease: [0.25, 0.46, 0.45, 0.94] }}
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary/30 bg-primary/10 mb-8">
+            <Zap className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium text-primary">AI-Powered Analysis</span>
+          </div>
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center max-w-4xl mx-auto">
-          {/* Badge */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 text-primary text-sm font-medium mb-8">
-              <Sparkles className="w-4 h-4" />
-              AI-Powered Analysis
-            </span>
-          </motion.div>
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-extrabold tracking-[-0.04em] leading-[1.1] text-balance mb-6">
+            <span className="text-gradient">Find how much money you're wasting on electricity.</span>
+          </h1>
 
-          {/* Main Heading */}
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white mb-6 leading-tight"
-          >
-            Find how much money you're{' '}
-            <span className="text-gradient">wasting</span> on electricity.
-          </motion.h1>
-
-          {/* Subtitle */}
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg sm:text-xl text-foreground/70 mb-8 max-w-2xl mx-auto"
-          >
+          <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto mb-10 leading-relaxed">
             Upload your bill and get instant AI savings insights. Works globally with 150+ utility providers.
-          </motion.p>
+          </p>
 
-          {/* CTA Button */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-col items-center gap-4"
+          <motion.button
+            onClick={onStartClick}
+            className="group relative inline-flex items-center gap-3 px-10 py-5 rounded-2xl font-bold text-lg bg-primary text-primary-foreground overflow-hidden shadow-[0_0_30px_rgba(59,130,246,0.2)] hover:shadow-[0_0_40px_rgba(59,130,246,0.35)] transition-shadow duration-500"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
           >
-            <Button
-              onClick={onStartClick}
-              size="lg"
-              className="gradient-cta text-white hover:opacity-90 text-lg px-8 py-6 rounded-xl shadow-lg shadow-primary/20"
-            >
-              <Zap className="w-5 h-5 mr-2" />
-              Check My Savings
-            </Button>
+            <span className="absolute inset-0 bg-gradient-to-r from-primary to-accent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+            <Zap className="w-5 h-5 relative z-10" />
+            <span className="relative z-10">Check My Savings</span>
+          </motion.button>
 
-            {/* Trust indicators */}
-            <div className="flex items-center gap-6 text-sm text-foreground/60">
-              <span className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                No credit card required
-              </span>
-              <span className="flex items-center gap-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-accent" />
-                Results in 30 seconds
-              </span>
-            </div>
-          </motion.div>
-        </div>
+          <div className="flex items-center justify-center gap-8 mt-10 text-sm text-muted-foreground">
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-accent" />
+              No credit card required
+            </span>
+            <span className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-accent" />
+              Results in 30 seconds
+            </span>
+          </div>
+        </motion.div>
       </div>
 
-      {/* Bottom gradient fade */}
-      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent" />
+      {/* Scroll indicator */}
+      <motion.div
+        className="absolute bottom-8 left-1/2 -translate-x-1/2"
+        animate={{ y: [0, 8, 0] }}
+        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+      >
+        <div className="w-6 h-10 rounded-full border-2 border-muted-foreground/30 flex items-start justify-center p-1.5">
+          <motion.div
+            className="w-1.5 h-1.5 rounded-full bg-primary"
+            animate={{ y: [0, 12, 0] }}
+            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+          />
+        </div>
+      </motion.div>
     </section>
   );
-}
+};
+
+export default HeroSection;

@@ -17,7 +17,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 
 type AppStep = "landing" | "upload" | "setup" | "processing" | "results";
-type StepperStep = "signin" | "upload" | "setup" | "results";
 
 const Index = () => {
   const [step, setStep] = useState<AppStep>("landing");
@@ -28,13 +27,13 @@ const Index = () => {
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const { isAuthenticated } = useAuth();
 
-  const getStepperStep = (): StepperStep => {
+  const getStepperStep = (): number => {
     switch (step) {
-      case "upload": return "upload";
-      case "setup": return "setup";
-      case "processing":
-      case "results": return "results";
-      default: return "signin";
+      case "upload": return 1;
+      case "setup": return 2;
+      case "processing": return 3;
+      case "results": return 3;
+      default: return 0;
     }
   };
 

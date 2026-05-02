@@ -1,75 +1,67 @@
-import { motion } from 'framer-motion';
-import { Check, User, Upload, Settings, FileText } from 'lucide-react';
+import { motion } from "framer-motion";
+import { Check, LogIn, Upload, Settings, BarChart3 } from "lucide-react";
 
-type StepId = 'signin' | 'upload' | 'setup' | 'results';
-
-interface ProgressStepperProps {
-  currentStep: StepId;
-}
-
-const steps: { id: StepId; label: string; icon: typeof User }[] = [
-  { id: 'signin', label: 'Sign In', icon: User },
-  { id: 'upload', label: 'Upload Bill', icon: Upload },
-  { id: 'setup', label: 'Setup Details', icon: Settings },
-  { id: 'results', label: 'Results', icon: FileText },
+const STEPS = [
+  { label: "Sign In", icon: LogIn },
+  { label: "Upload Bill", icon: Upload },
+  { label: "Setup Details", icon: Settings },
+  { label: "Results", icon: BarChart3 },
 ];
 
-export default function ProgressStepper({ currentStep }: ProgressStepperProps) {
-  const currentIndex = steps.findIndex(s => s.id === currentStep);
+interface ProgressStepperProps {
+  currentStep: number; // 0-3
+}
 
+const ProgressStepper = ({ currentStep }: ProgressStepperProps) => {
   return (
-    <div className="w-full max-w-3xl mx-auto py-6">
-      <div className="flex items-center justify-between">
-        {steps.map((step, index) => {
-          const isCompleted = index < currentIndex;
-          const isActive = index === currentIndex;
-          const isFuture = index > currentIndex;
+    <div className="w-full max-w-2xl mx-auto px-4 py-6">
+      <div className="flex items-center justify-between relative">
+        {/* Connector line */}
+        <div className="absolute top-5 left-[10%] right-[10%] h-px bg-border" />
+        <motion.div
+          className="absolute top-5 left-[10%] h-px bg-primary origin-left"
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: currentStep / (STEPS.length - 1) }}
+          style={{ width: "80%" }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
 
+        {STEPS.map((step, i) => {
+          const done = i < currentStep;
+          const active = i === currentStep;
           return (
-            <div key={step.id} className="flex items-center flex-1 last:flex-none">
-              {/* Step circle */}
-              <div className="flex flex-col items-center">
-                <motion.div
-                  initial={false}
-                  animate={{
-                    scale: isActive ? 1.1 : 1,
-                  }}
-                  className={`
-                    w-10 h-10 rounded-full flex items-center justify-center
-                    transition-colors duration-300
-                    ${isCompleted 
-                      ? 'bg-primary text-primary-foreground' 
-                      : isActive 
-                        ? 'bg-primary text-primary-foreground ring-4 ring-primary/20' 
-                        : 'bg-muted text-muted-foreground'
-                    }
-                  `}
-                >
-                  {isCompleted ? (
-                    <Check className="w-5 h-5" />
-                  ) : (
-                    <step.icon className="w-5 h-5" />
-                  )}
-                </motion.div>
-                <span className={`
-                  mt-2 text-xs font-medium
-                  ${isCompleted || isActive ? 'text-foreground' : 'text-muted-foreground'}
-                `}>
-                  {step.label}
-                </span>
-              </div>
-
-              {/* Connector line */}
-              {index < steps.length - 1 && (
-                <div className={`
-                  flex-1 h-0.5 mx-4 transition-colors duration-300
-                  ${index < currentIndex ? 'bg-primary' : 'bg-muted'}
-                `} />
-              )}
+            <div key={step.label} className="relative z-10 flex flex-col items-center gap-2">
+              <motion.div
+                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${
+                  done
+                    ? "bg-primary border-primary"
+                    : active
+                    ? "bg-primary/20 border-primary"
+                    : "bg-secondary border-border"
+                }`}
+                initial={false}
+                animate={active ? { scale: [1, 1.1, 1] } : {}}
+                transition={{ duration: 0.4 }}
+              >
+                {done ? (
+                  <Check className="w-4 h-4 text-primary-foreground" />
+                ) : (
+                  <step.icon className={`w-4 h-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                )}
+              </motion.div>
+              <span
+                className={`text-[11px] font-medium transition-colors hidden sm:block ${
+                  done || active ? "text-foreground" : "text-muted-foreground"
+                }`}
+              >
+                {step.label}
+              </span>
             </div>
           );
         })}
       </div>
     </div>
   );
-}
+};
+
+export default ProgressStepper;

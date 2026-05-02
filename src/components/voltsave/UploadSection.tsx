@@ -1,263 +1,281 @@
-import { useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
-import { Upload, X, FileText, Shield, Trash2, Lock, Loader2, File } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
-import { apiUpload } from '@/hooks/useApi';
-import { toast } from 'sonner';
+import { motion, AnimatePresence } from "framer-motion";
+import { Upload, FileText, CheckCircle, X, Shield, Trash2, EyeOff, Zap } from "lucide-react";
+import { useState, useCallback } from "react";
+import { apiUpload } from "@/hooks/useApi";
+import { toast } from "sonner";
 
 interface UploadSectionProps {
-  onContinue: (billId: string | null, isDemo: boolean) => void;
+  onContinue: (billId: string, isDemo: boolean) => void;
 }
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-
-export default function UploadSection({ onContinue }: UploadSectionProps) {
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+const UploadSection = ({ onContinue }: UploadSectionProps) => {
+  const [billFile, setBillFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploaded, setUploaded] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [billId, setBillId] = useState<string | null>(null);
 
-  const validateFile = (file: File): string | null => {
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return 'Please upload a PDF, JPG, or PNG file';
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return 'File size must be less than 10MB';
-    }
-    return null;
-  };
-
-  const simulateProgress = () => {
-    let progress = 0;
+  const simulateProgress = useCallback(() => {
+    setUploadProgress(0);
     const interval = setInterval(() => {
-      progress += Math.random() * 15;
-      if (progress >= 100) {
-        progress = 100;
-        clearInterval(interval);
-      }
-      setUploadProgress(Math.min(progress, 100));
-    }, 200);
+      setUploadProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(interval);
+          return 90;
+        }
+        return prev + Math.random() * 15 + 5;
+      });
+    }, 100);
     return interval;
-  };
-
-  const handleFileSelect = useCallback((file: File) => {
-    const error = validateFile(file);
-    if (error) {
-      toast.error(error);
-      return;
-    }
-    setSelectedFile(file);
-    setUploadProgress(0);
-    
-    // Simulate visual progress
-    const interval = simulateProgress();
-    setTimeout(() => clearInterval(interval), 1500);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const file = e.dataTransfer.files[0];
-    if (file) {
-      handleFileSelect(file);
-    }
-  }, [handleFileSelect]);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
-
-  const handleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      handleFileSelect(file);
-    }
-  }, [handleFileSelect]);
-
-  const clearSelection = () => {
-    setSelectedFile(null);
-    setUploadProgress(0);
-  };
-
-  const handleContinue = async () => {
-    if (!selectedFile) return;
-
+  const handleUpload = useCallback(async (file: File) => {
+    setBillFile(file);
     setIsUploading(true);
+    const progressInterval = simulateProgress();
+
     try {
       const userId = localStorage.getItem('userId');
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append('file', file);
       formData.append('userId', userId || '');
       formData.append('profileType', 'home');
 
       const response = await apiUpload('/api/bills/upload', formData);
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+      setUploaded(true);
+      setBillId(response.billId);
       toast.success('Bill uploaded successfully!');
-      onContinue(response.billId, false);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to upload bill');
+      clearInterval(progressInterval);
+      toast.error(err.message || 'Upload failed');
+      setBillFile(null);
+      setUploadProgress(0);
     } finally {
       setIsUploading(false);
     }
-  };
+  }, [simulateProgress]);
 
-  const handleDemo = () => {
-    toast.info('Using demo bill for preview');
-    onContinue('demo', true);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        // Validate file
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+        if (!validTypes.includes(file.type)) {
+          toast.error('Please upload a PDF, JPG, or PNG file');
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error('File size must be under 10MB');
+          return;
+        }
+        handleUpload(file);
+      }
+    },
+    [handleUpload]
+  );
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        // Validate file
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+        if (!validTypes.includes(file.type)) {
+          toast.error('Please upload a PDF, JPG, or PNG file');
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error('File size must be under 10MB');
+          return;
+        }
+        handleUpload(file);
+      }
+    },
+    [handleUpload]
+  );
+
+  const handleTryDemo = useCallback(() => {
+    setBillFile(new File(["demo"], "demo-electricity-bill.pdf", { type: "application/pdf" }));
+    setUploadProgress(100);
+    setUploaded(true);
+    setBillId('demo');
+    toast.success('Demo bill loaded!');
+  }, []);
+
+  const clearFile = useCallback(() => {
+    setBillFile(null);
+    setUploaded(false);
+    setUploadProgress(0);
+    setBillId(null);
+  }, []);
+
+  const handleContinue = () => {
+    if (billId) {
+      onContinue(billId, billId === 'demo');
+    }
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-4">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left - Upload Area */}
-        <div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className={`
-              border-2 border-dashed rounded-xl p-8 text-center transition-colors
-              ${isDragging 
-                ? 'border-primary bg-primary/5' 
-                : 'border-border hover:border-primary/50'
-              }
-            `}
-            onDrop={handleDrop}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-          >
-            {!selectedFile ? (
-              <>
-                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <Upload className="w-8 h-8 text-primary" />
-                </div>
-                <p className="text-white font-medium mb-2">
-                  Drop your electricity bill here
-                </p>
-                <p className="text-foreground/50 text-sm mb-4">
-                  or click to browse
-                </p>
-                <p className="text-foreground/40 text-xs">
-                  PDF, JPG, or PNG (max 10MB)
-                </p>
+    <section className="relative py-8 sm:py-12">
+      <div className="container mx-auto px-4 max-w-xl">
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-8"
+        >
+          <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-foreground">
+            Upload Your Electricity Bill
+          </h2>
+          <p className="text-muted-foreground text-sm">
+            Drag & drop your bill to begin AI analysis
+          </p>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="glass-card p-6 md:p-8"
+        >
+          {/* Progress bar */}
+          {billFile && !uploaded && (
+            <div className="h-1 w-full bg-secondary rounded-full mb-5 overflow-hidden">
+              <motion.div
+                className="h-full bg-primary rounded-full"
+                style={{ width: `${Math.min(uploadProgress, 100)}%` }}
+              />
+            </div>
+          )}
+
+          <AnimatePresence mode="wait">
+            {!billFile ? (
+              <motion.div
+                key="dropzone"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 ${
+                  dragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-primary/30 hover:border-primary/60"
+                }`}
+              >
                 <input
                   type="file"
                   accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={handleFileInput}
-                  className="hidden"
-                  id="file-input"
+                  onChange={handleFileSelect}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
                 />
-                <label htmlFor="file-input">
-                  <Button variant="outline" className="mt-4" asChild>
-                    <span>Browse Files</span>
-                  </Button>
-                </label>
-              </>
+                <Upload
+                  className={`w-10 h-10 mx-auto mb-3 transition-colors ${
+                    dragOver ? "text-primary" : "text-muted-foreground"
+                  }`}
+                />
+                <p className="text-base font-semibold text-foreground mb-1">
+                  Drop your electricity bill here
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  PDF, JPG or PNG • Max 10MB
+                </p>
+              </motion.div>
             ) : (
-              <div className="text-left">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                    <FileText className="w-6 h-6 text-primary" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-white truncate">
-                      {selectedFile.name}
-                    </p>
-                    <p className="text-sm text-foreground/50">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
-                    </p>
-                    <div className="mt-3">
-                      <Progress value={uploadProgress} className="h-2" />
-                      <p className="text-xs text-foreground/50 mt-1">
-                        {uploadProgress === 100 ? 'Ready to upload' : 'Processing...'}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={clearSelection}
-                    className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                  >
-                    <X className="w-5 h-5 text-foreground/50" />
-                  </button>
+              <motion.div
+                key="preview"
+                initial={{ opacity: 0, scale: 0.97 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border"
+              >
+                <motion.div
+                  initial={{ scale: 1 }}
+                  animate={uploaded ? { scale: [1, 1.15, 1] } : {}}
+                  transition={{ duration: 0.3 }}
+                >
+                  {uploaded ? (
+                    <CheckCircle className="w-9 h-9 text-accent" />
+                  ) : (
+                    <FileText className="w-9 h-9 text-primary" />
+                  )}
+                </motion.div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-foreground truncate text-sm">
+                    {billFile.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {uploaded
+                      ? "Upload complete"
+                      : `Uploading... ${Math.min(Math.round(uploadProgress), 100)}%`}
+                  </p>
                 </div>
-              </div>
+                <button
+                  onClick={clearFile}
+                  disabled={isUploading}
+                  className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground disabled:opacity-50"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </motion.div>
             )}
-          </motion.div>
+          </AnimatePresence>
 
-          {/* Demo link */}
-          <button
-            onClick={handleDemo}
-            className="mt-4 text-sm text-primary hover:text-primary/80 transition-colors"
-          >
-            Try with a demo bill
-          </button>
-        </div>
-
-        {/* Right - Trust Indicators */}
-        <div className="space-y-4">
-          <div className="glass-card p-4 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-              <Lock className="w-5 h-5 text-accent" />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">Encrypted upload</h3>
-              <p className="text-sm text-foreground/50">
-                Your bill is encrypted in transit and at rest
-              </p>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Trash2 className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">Auto-deleted after analysis</h3>
-              <p className="text-sm text-foreground/50">
-                We delete your bill data after generating the report
-              </p>
-            </div>
-          </div>
-
-          <div className="glass-card p-4 flex items-start gap-4">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Shield className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h3 className="font-medium text-white">Never shared</h3>
-              <p className="text-sm text-foreground/50">
-                Your data is never sold or shared with third parties
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Continue Button */}
-      <div className="mt-8 flex justify-center">
-        <Button
-          onClick={handleContinue}
-          disabled={!selectedFile || isUploading}
-          size="lg"
-          className="gradient-cta text-white px-12"
-        >
-          {isUploading ? (
-            <>
-              <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-              Uploading...
-            </>
-          ) : (
-            'Continue'
+          {/* Try demo */}
+          {!billFile && (
+            <button
+              onClick={handleTryDemo}
+              className="w-full mt-4 py-2.5 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all flex items-center justify-center gap-2"
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Try with a demo bill
+            </button>
           )}
-        </Button>
+
+          {/* Trust indicators */}
+          <div className="grid grid-cols-3 gap-3 mt-6 pt-5 border-t border-border">
+            {[
+              { icon: Shield, label: "Encrypted upload" },
+              { icon: Trash2, label: "Auto-deleted after analysis" },
+              { icon: EyeOff, label: "Never shared" },
+            ].map((t) => (
+              <div key={t.label} className="flex flex-col items-center gap-1.5 text-center">
+                <t.icon className="w-4 h-4 text-accent" />
+                <span className="text-[11px] text-muted-foreground leading-tight">
+                  {t.label}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Continue */}
+          <motion.button
+            onClick={handleContinue}
+            disabled={!uploaded}
+            className={`w-full mt-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+              uploaded
+                ? "bg-primary text-primary-foreground shadow-[0_0_20px_hsla(217,91%,60%,0.15)] hover:brightness-110"
+                : "bg-secondary text-muted-foreground cursor-not-allowed"
+            }`}
+            whileHover={uploaded ? { scale: 1.01 } : {}}
+            whileTap={uploaded ? { scale: 0.99 } : {}}
+          >
+            {uploaded ? "Continue to Setup" : "Upload a bill to continue"}
+          </motion.button>
+        </motion.div>
       </div>
-    </div>
+    </section>
   );
-}
+};
+
+export default UploadSection;
