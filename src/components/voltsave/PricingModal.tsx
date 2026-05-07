@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 interface PricingModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onUnlockSuccess?: () => void;
 }
 
 const plans = [
@@ -59,18 +60,21 @@ const plans = [
   },
 ];
 
-export default function PricingModal({ isOpen, onClose }: PricingModalProps) {
+export default function PricingModal({ isOpen, onClose, onUnlockSuccess }: PricingModalProps) {
   const [isProcessing, setIsProcessing] = useState(false);
 
   if (!isOpen) return null;
 
   const handleUnlock = async () => {
     setIsProcessing(true);
-    // Simulate payment processing
-    toast.info('Redirecting to payment...');
+    // Simulate payment processing (bypassed for testing)
+    toast.info('Processing payment...');
     setTimeout(() => {
       setIsProcessing(false);
-      toast.success('Payment coming soon — backend is ready!');
+      toast.success('Payment successful! Full report unlocked.');
+      if (onUnlockSuccess) {
+        onUnlockSuccess();
+      }
       onClose();
     }, 1500);
   };

@@ -74,9 +74,20 @@ const Index = () => {
     setShowPricing(true);
   };
 
+  const handleUnlockSuccess = () => {
+    // Update the analysis result to mark as paid
+    if (analysisResult) {
+      setAnalysisResult({ ...analysisResult, paid: true });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
-      <Navbar onPricingClick={() => setShowPricing(true)} onAuthClick={() => setShowAuth(true)} />
+      <Navbar 
+        onPricingClick={() => setShowPricing(true)} 
+        onAuthClick={() => setShowAuth(true)} 
+        onLogoClick={() => setStep("landing")}
+      />
       
       {/* Progress Stepper - only show after auth */}
       {step !== "landing" && (
@@ -184,7 +195,11 @@ const Index = () => {
         onSuccess={handleAuthSuccess} 
       />
       
-      <PricingModal isOpen={showPricing} onClose={() => setShowPricing(false)} />
+      <PricingModal 
+        isOpen={showPricing} 
+        onClose={() => setShowPricing(false)} 
+        onUnlockSuccess={handleUnlockSuccess}
+      />
     </div>
   );
 };

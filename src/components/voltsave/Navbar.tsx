@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 interface NavbarProps {
   onAuthClick: () => void;
   onPricingClick?: () => void;
+  onLogoClick?: () => void;
 }
 
 const COUNTRIES = [
@@ -19,7 +20,7 @@ const COUNTRIES = [
   { code: "CA", name: "Canada", flag: "🇨🇦", currency: "CAD", symbol: "C$" },
 ];
 
-const Navbar = ({ onAuthClick, onPricingClick }: NavbarProps) => {
+const Navbar = ({ onAuthClick, onPricingClick, onLogoClick }: NavbarProps) => {
   const { isAuthenticated, name, logout } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
   const [showCountry, setShowCountry] = useState(false);
@@ -64,12 +65,15 @@ const Navbar = ({ onAuthClick, onPricingClick }: NavbarProps) => {
     >
       <div className="container mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
-        <div className="flex items-center gap-2">
+        <button 
+          onClick={onLogoClick}
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+        >
           <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center">
             <Zap className="w-4 h-4 text-primary" />
           </div>
           <span className="font-bold text-lg text-foreground tracking-tight">VoltSave AI</span>
-        </div>
+        </button>
 
         <div className="flex items-center gap-3">
           {/* Country selector */}

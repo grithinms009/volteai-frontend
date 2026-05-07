@@ -186,7 +186,7 @@ const ResultsDashboard = ({ result, billId, onUnlock }: ResultsDashboardProps) =
               </h4>
             </div>
             <ul className="space-y-2.5">
-              {result.topIssues.slice(0, 3).map((issue, i) => (
+              {(isPaid ? result.topIssues : result.topIssues.slice(0, 3)).map((issue, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-foreground">
                   <span className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
                     issue.severity === 'high' ? 'bg-destructive' : 'bg-orange-400'
@@ -211,7 +211,7 @@ const ResultsDashboard = ({ result, billId, onUnlock }: ResultsDashboardProps) =
               </h4>
             </div>
             <ul className="space-y-2.5">
-              {result.recommendations.slice(0, 2).map((rec, i) => {
+              {(isPaid ? result.recommendations : result.recommendations.slice(0, 2)).map((rec, i) => {
                 const recText = typeof rec === 'string' ? rec : rec.text;
                 const recIcon = typeof rec === 'string' ? '💡' : (rec.icon || '💡');
                 return (
