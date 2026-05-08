@@ -13,10 +13,13 @@ import ProcessingScreen from "@/components/voltsave/ProcessingScreen";
 import ResultsDashboard from "@/components/voltsave/ResultsDashboard";
 import ProgressStepper from "@/components/voltsave/ProgressStepper";
 import PricingModal from "@/components/voltsave/PricingModal";
+import StateSelector from "@/components/voltsave/StateSelector";
+import ProviderSelector from "@/components/voltsave/ProviderSelector";
 import { useAuth } from "@/hooks/useAuth";
+import { useCountry } from "@/hooks/useCountry";
 import { toast } from "sonner";
 
-type AppStep = "landing" | "upload" | "setup" | "processing" | "results";
+type AppStep = "landing" | "state" | "provider" | "upload" | "setup" | "processing" | "results";
 
 const Index = () => {
   const [step, setStep] = useState<AppStep>("landing");
@@ -25,11 +28,16 @@ const Index = () => {
   const [billId, setBillId] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<any>(null);
   const { isAuthenticated } = useAuth();
+  const { country } = useCountry();
 
   const getStepperStep = (): number => {
     switch (step) {
-      case "upload": return 1;
+      case "state": return 0;
+      case "provider": return 1;
+      case "upload": return 2;
       case "setup": return 2;
       case "processing": return 3;
       case "results": return 3;
@@ -39,7 +47,7 @@ const Index = () => {
 
   const handleCTAClick = useCallback(() => {
     if (isAuthenticated) {
-      setStep("upload");
+      setStep("state");
     } else {
       setShowAuth(true);
     }
@@ -47,12 +55,23 @@ const Index = () => {
 
   const handleAuthSuccess = () => {
     setShowAuth(false);
+    setStep("state");
+  };
+
+  const handleStateSelect = (state: string) => {
+    setSelectedState(state);
+    setStep("provider");
+  };
+
+  const handleProviderSelect = (provider: any) => {
+    setSelectedProvider(provider);
     setStep("upload");
   };
 
   const handleUploadContinue = (id: string | null, demo: boolean) => {
     setBillId(id);
     setIsDemo(demo);
+    if (id) localStorage.setItem('lastBillId', id);
     setStep("setup");
   };
 
@@ -112,6 +131,45 @@ const Index = () => {
           </motion.div>
         )}
         
+        {step === "state" && (
+          <motion.div
+            key="state"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="py-8"
+          >
+            <div className="text-center mb-8">
+              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 1 of 3</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Select Your State</h2>
+              <p className="text-muted-foreground text-sm">We'll find the right electricity providers for you</p>
+            </div>
+            <StateSelector onSelect={handleStateSelect} />
+          </motion.div>
+        )}
+
+        {step === "provider" && selectedState && (
+          <motion.div
+            key="provider"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="py-8"
+          >
+            <div className="text-center mb-8">
+              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 2 of 3</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Select Your Provider</h2>
+              <p className="text-muted-foreground text-sm">{selectedState} electricity board</p>
+            </div>
+            <ProviderSelector
+              state={selectedState}
+              onSelect={handleProviderSelect}
+              onBack={() => setStep("state")}
+              onSkip={() => { setSelectedProvider(null); setStep("upload"); }}
+            />
+          </motion.div>
+        )}
+
         {step === "upload" && (
           <motion.div
             key="upload"
@@ -121,10 +179,17 @@ const Index = () => {
             className="py-8"
           >
             <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Upload Your Bill</h2>
-              <p className="text-foreground/60">Upload your electricity bill for AI analysis</p>
+              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 3 of 3</p>
+              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Upload Your Bill</h2>
+              {selectedProvider && (
+                <p className="text-muted-foreground text-sm">{selectedProvider.name} • {selectedState}</p>
+              )}
             </div>
-            <UploadSection onContinue={handleUploadContinue} />
+            <UploadSection
+              onContinue={handleUploadContinue}
+              providerId={selectedProvider?.id}
+              countryCode={country.code}
+            />
           </motion.div>
         )}
 

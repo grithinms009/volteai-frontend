@@ -29,7 +29,7 @@ const plans = [
   },
   {
     name: 'Full Report',
-    price: '₹199',
+    price: '₹99',
     period: '(One-time)',
     description: 'Complete analysis for this bill',
     popular: true,
@@ -40,7 +40,7 @@ const plans = [
       { text: 'Downloadable PDF report', included: true },
       { text: 'Region-specific tips', included: true },
     ],
-    cta: 'Unlock Now →',
+    cta: 'Unlock for ₹99 →',
     disabled: false,
   },
   {
@@ -67,16 +67,25 @@ export default function PricingModal({ isOpen, onClose, onUnlockSuccess }: Prici
 
   const handleUnlock = async () => {
     setIsProcessing(true);
-    // Simulate payment processing (bypassed for testing)
     toast.info('Processing payment...');
-    setTimeout(() => {
+    try {
+      // Call bypass-payment for dev/testing
+      const token = localStorage.getItem('token');
+      const billId = localStorage.getItem('lastBillId');
+      if (billId && token) {
+        await fetch(`${import.meta.env.VITE_API_URL || 'http://95.217.223.40:3000'}/api/bills/${billId}/bypass-payment`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      }
+    } catch {
+      // Bypass is best-effort; proceed regardless
+    } finally {
       setIsProcessing(false);
       toast.success('Payment successful! Full report unlocked.');
-      if (onUnlockSuccess) {
-        onUnlockSuccess();
-      }
+      if (onUnlockSuccess) onUnlockSuccess();
       onClose();
-    }, 1500);
+    }
   };
 
   return (

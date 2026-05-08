@@ -6,9 +6,11 @@ import { toast } from "sonner";
 
 interface UploadSectionProps {
   onContinue: (billId: string, isDemo: boolean) => void;
+  providerId?: string;
+  countryCode?: string;
 }
 
-const UploadSection = ({ onContinue }: UploadSectionProps) => {
+const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSectionProps) => {
   const [billFile, setBillFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -41,6 +43,8 @@ const UploadSection = ({ onContinue }: UploadSectionProps) => {
       formData.append('file', file);
       formData.append('userId', userId || '');
       formData.append('profileType', 'home');
+      formData.append('countryCode', countryCode);
+      if (providerId) formData.append('providerId', providerId);
 
       const response = await apiUpload('/api/bills/upload', formData);
       

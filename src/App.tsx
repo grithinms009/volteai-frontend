@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Admin from "./pages/Admin";
+import { CountryProvider } from "./hooks/useCountry";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -18,6 +19,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
+      <CountryProvider>
       <Router>
         <Routes>
           <Route path="/" element={<Index />} />
@@ -27,6 +29,7 @@ function App() {
         </Routes>
       </Router>
       <Toaster position="top-center" richColors />
+      </CountryProvider>
     </QueryClientProvider>
   );
 }

@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { Zap, User, ChevronDown } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useCountry, COUNTRIES } from "@/hooks/useCountry";
 
 interface NavbarProps {
   onAuthClick: () => void;
@@ -9,52 +10,15 @@ interface NavbarProps {
   onLogoClick?: () => void;
 }
 
-const COUNTRIES = [
-  { code: "IN", name: "India", flag: "🇮🇳", currency: "INR", symbol: "₹" },
-  { code: "US", name: "United States", flag: "🇺🇸", currency: "USD", symbol: "$" },
-  { code: "GB", name: "United Kingdom", flag: "🇬🇧", currency: "GBP", symbol: "£" },
-  { code: "DE", name: "Germany", flag: "🇩🇪", currency: "EUR", symbol: "€" },
-  { code: "AU", name: "Australia", flag: "🇦🇺", currency: "AUD", symbol: "A$" },
-  { code: "JP", name: "Japan", flag: "🇯🇵", currency: "JPY", symbol: "¥" },
-  { code: "BR", name: "Brazil", flag: "🇧🇷", currency: "BRL", symbol: "R$" },
-  { code: "CA", name: "Canada", flag: "🇨🇦", currency: "CAD", symbol: "C$" },
-];
-
 const Navbar = ({ onAuthClick, onPricingClick, onLogoClick }: NavbarProps) => {
   const { isAuthenticated, name, logout } = useAuth();
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRIES[0]);
+  const { country: selectedCountry, setCountry } = useCountry();
   const [showCountry, setShowCountry] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  useEffect(() => {
-    // Auto-detect location via timezone
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      const tzMap: Record<string, string> = {
-        "Asia/Kolkata": "IN", "Asia/Calcutta": "IN",
-        "America/New_York": "US", "America/Chicago": "US", "America/Los_Angeles": "US", "America/Denver": "US",
-        "Europe/London": "GB",
-        "Europe/Berlin": "DE", "Europe/Frankfurt": "DE",
-        "Australia/Sydney": "AU", "Australia/Melbourne": "AU",
-        "Asia/Tokyo": "JP",
-        "America/Sao_Paulo": "BR",
-        "America/Toronto": "CA", "America/Vancouver": "CA",
-      };
-      const code = tzMap[tz];
-      if (code) {
-        const found = COUNTRIES.find(c => c.code === code);
-        if (found) {
-          setSelectedCountry(found);
-          localStorage.setItem('currency', JSON.stringify({ code: found.currency, symbol: found.symbol }));
-        }
-      }
-    } catch {}
-  }, []);
-
-  const handleCountryChange = (country: typeof COUNTRIES[0]) => {
-    setSelectedCountry(country);
+  const handleCountryChange = (c: typeof COUNTRIES[0]) => {
+    setCountry(c);
     setShowCountry(false);
-    localStorage.setItem('currency', JSON.stringify({ code: country.currency, symbol: country.symbol }));
   };
 
   return (

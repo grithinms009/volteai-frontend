@@ -1,10 +1,10 @@
 import { motion } from "framer-motion";
-import { Check, LogIn, Upload, Settings, BarChart3 } from "lucide-react";
+import { Check, MapPin, Zap, Upload, BarChart3 } from "lucide-react";
 
 const STEPS = [
-  { label: "Sign In", icon: LogIn },
+  { label: "Select State", icon: MapPin },
+  { label: "Provider", icon: Zap },
   { label: "Upload Bill", icon: Upload },
-  { label: "Setup Details", icon: Settings },
   { label: "Results", icon: BarChart3 },
 ];
 
