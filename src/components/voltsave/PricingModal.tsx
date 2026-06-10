@@ -1,193 +1,194 @@
-import { motion } from 'framer-motion';
-import { X, Check, Loader2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { motion, AnimatePresence } from "framer-motion";
+import { X, Check, Zap, Crown } from "lucide-react";
+import { useState } from "react";
+import { apiCall } from "@/hooks/useApi";
+import { toast } from "sonner";
 
 interface PricingModalProps {
-  isOpen: boolean;
+  open: boolean;
   onClose: () => void;
+  billId?: string | null;
+  isDemo?: boolean;
   onUnlockSuccess?: () => void;
 }
 
 const plans = [
   {
-    name: 'Free',
-    price: '₹0',
-    period: '',
-    description: 'Basic analysis for everyone',
+    id: "free",
+    name: "Free Preview",
+    price: "₹0",
+    description: "Basic savings snapshot",
     features: [
-      { text: 'Bill summary', included: true },
-      { text: 'Efficiency score', included: true },
-      { text: 'Top 2 issues', included: true },
-      { text: 'Savings estimate', included: true },
-      { text: 'Full analysis', included: false },
-      { text: 'PDF report', included: false },
+      "Efficiency score",
+      "Estimated monthly savings",
+      "Top 2 waste issues",
+      "Limited recommendations",
     ],
-    cta: 'Current Plan',
+    cta: "Current Plan",
     disabled: true,
   },
   {
-    name: 'Full Report',
-    price: '₹99',
-    period: '(One-time)',
-    description: 'Complete analysis for this bill',
-    popular: true,
+    id: "report",
+    name: "Full Report",
+    price: "₹199",
+    priceNote: "one-time",
+    description: "Complete optimization plan",
     features: [
-      { text: 'Everything in Free', included: true },
-      { text: 'All issues & recommendations', included: true },
-      { text: 'Appliance breakdown', included: true },
-      { text: 'Downloadable PDF report', included: true },
-      { text: 'Region-specific tips', included: true },
+      "Everything in Free",
+      "Detailed appliance analysis",
+      "Full optimization strategy",
+      "Peak-hour scheduling",
+      "Downloadable PDF report",
+      "Cost breakdown by device",
     ],
-    cta: 'Unlock for ₹99 →',
-    disabled: false,
+    cta: "Get Full Report",
+    highlight: true,
   },
   {
-    name: 'Pro',
-    price: '₹499',
-    period: '/month',
-    description: 'Unlimited reports & monitoring',
+    id: "pro",
+    name: "Pro",
+    price: "₹499",
+    priceNote: "/month",
+    description: "Ongoing optimization",
     features: [
-      { text: 'Unlimited reports', included: true },
-      { text: 'Monthly bill monitoring', included: true },
-      { text: 'Trend comparison', included: true },
-      { text: 'Priority support', included: true },
+      "Everything in Full Report",
+      "Monthly bill tracking",
+      "Real-time alerts",
+      "Priority support",
+      "Unlimited analyses",
     ],
-    cta: 'Coming Soon',
-    disabled: true,
-    comingSoon: true,
+    cta: "Start Pro",
   },
 ];
 
-export default function PricingModal({ isOpen, onClose, onUnlockSuccess }: PricingModalProps) {
-  const [isProcessing, setIsProcessing] = useState(false);
+const PricingModal = ({ open, onClose, billId, isDemo, onUnlockSuccess }: PricingModalProps) => {
+  const [loadingId, setLoadingId] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
-  const handleUnlock = async () => {
-    setIsProcessing(true);
-    toast.info('Processing payment...');
+  const handleBuy = async (planId: string) => {
+    if (planId === "free") return;
+    setLoadingId(planId);
     try {
-      // Call bypass-payment for dev/testing
-      const token = localStorage.getItem('token');
-      const billId = localStorage.getItem('lastBillId');
-      if (billId && token) {
-        await fetch(`${import.meta.env.VITE_API_URL || 'http://95.217.223.40:3000'}/api/bills/${billId}/bypass-payment`, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+      // DEV: bypass payment — try backend bypass endpoint, then unlock anyway
+      if (billId && !isDemo) {
+        try {
+          await apiCall(`/api/bills/${billId}/bypass-payment`, { method: "POST" });
+        } catch {
+          // endpoint may not exist — ignore
+        }
       }
-    } catch {
-      // Bypass is best-effort; proceed regardless
-    } finally {
-      setIsProcessing(false);
-      toast.success('Payment successful! Full report unlocked.');
-      if (onUnlockSuccess) onUnlockSuccess();
+      await new Promise((r) => setTimeout(r, 500));
+      toast.success("Payment bypassed — full report unlocked!");
+      onUnlockSuccess?.();
       onClose();
+    } catch (e: any) {
+      if (e?.message !== "Payment cancelled") {
+        toast.error(e?.message || "Payment failed");
+      }
+    } finally {
+      setLoadingId(null);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={onClose}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-      />
-
-      {/* Modal */}
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="relative w-full max-w-5xl max-h-[90vh] overflow-y-auto glass-card p-6 sm:p-8"
-      >
-        {/* Close button */}
-        <button
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
           onClick={onClose}
-          className="absolute top-4 right-4 text-foreground/60 hover:text-foreground"
         >
-          <X className="w-5 h-5" />
-        </button>
-
-        <div className="text-center mb-8">
-          <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">
-            Choose Your Plan
-          </h2>
-          <p className="text-foreground/60">
-            Unlock your complete energy savings report
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plans.map((plan, index) => (
-            <motion.div
-              key={plan.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-              className={`
-                glass-card p-6 flex flex-col
-                ${plan.popular ? 'ring-2 ring-primary relative' : ''}
-              `}
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 10 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.95, opacity: 0, y: 10 }}
+            transition={{ type: "spring", stiffness: 400, damping: 30 }}
+            className="glass-card p-6 md:p-8 w-full max-w-3xl relative max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
             >
-              {plan.popular && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 bg-primary text-primary-foreground text-xs font-medium rounded-full">
-                  Most Popular
-                </span>
-              )}
+              <X className="w-4 h-4" />
+            </button>
 
-              <div className="text-center mb-6">
-                <h3 className="text-lg font-semibold text-white mb-2">{plan.name}</h3>
-                <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-3xl font-bold text-white">{plan.price}</span>
-                  <span className="text-sm text-foreground/50">{plan.period}</span>
-                </div>
-                <p className="text-sm text-foreground/50 mt-2">{plan.description}</p>
-              </div>
+            <div className="text-center mb-8">
+              <h3 className="text-2xl font-bold text-foreground mb-1">Choose Your Plan</h3>
+              <p className="text-sm text-muted-foreground">
+                Unlock deeper insights and save more on electricity
+              </p>
+            </div>
 
-              <ul className="space-y-3 mb-6 flex-1">
-                {plan.features.map((feature, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    {feature.included ? (
-                      <Check className="w-5 h-5 text-accent shrink-0" />
-                    ) : (
-                      <X className="w-5 h-5 text-foreground/30 shrink-0" />
+            <div className="grid md:grid-cols-3 gap-4">
+              {plans.map((plan) => (
+                <div
+                  key={plan.id}
+                  className={`relative rounded-2xl p-5 border transition-all ${
+                    plan.highlight
+                      ? "border-primary/50 bg-primary/5 shadow-[0_0_30px_hsla(217,91%,60%,0.1)]"
+                      : "border-border bg-secondary/20"
+                  }`}
+                >
+                  {plan.highlight && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 px-3 py-1 rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+                      <Crown className="w-3 h-3" />
+                      Popular
+                    </div>
+                  )}
+                  <h4 className="text-base font-bold text-foreground mb-1">{plan.name}</h4>
+                  <div className="flex items-baseline gap-1 mb-1">
+                    <span className="text-2xl font-extrabold text-foreground">{plan.price}</span>
+                    {plan.priceNote && (
+                      <span className="text-xs text-muted-foreground">{plan.priceNote}</span>
                     )}
-                    <span className={feature.included ? 'text-foreground/80' : 'text-foreground/40'}>
-                      {feature.text}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-4">{plan.description}</p>
 
-              <Button
-                onClick={plan.popular ? handleUnlock : undefined}
-                disabled={plan.disabled || (plan.popular && isProcessing)}
-                className={`
-                  w-full
-                  ${plan.popular 
-                    ? 'gradient-cta text-white' 
-                    : plan.comingSoon 
-                      ? 'bg-muted text-muted-foreground'
-                      : 'variant-outline'
-                  }
-                `}
-              >
-                {plan.popular && isProcessing ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  plan.cta
-                )}
-              </Button>
-            </motion.div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
+                  <ul className="space-y-2 mb-5">
+                    {plan.features.map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-foreground">
+                        <Check className="w-3.5 h-3.5 text-accent mt-0.5 flex-shrink-0" />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
+
+                  <button
+                    disabled={plan.disabled}
+                    onClick={() => handleBuy(plan.id)}
+                    className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                      plan.highlight
+                        ? "bg-primary text-primary-foreground hover:brightness-110 shadow-[0_0_15px_hsla(217,91%,60%,0.15)]"
+                        : plan.disabled
+                        ? "bg-secondary text-muted-foreground cursor-not-allowed"
+                        : "bg-secondary text-foreground hover:bg-secondary/80"
+                    }`}
+                  >
+                    {plan.disabled ? (
+                      plan.cta
+                    ) : loadingId === plan.id ? (
+                      "Processing…"
+                    ) : (
+                      <span className="flex items-center justify-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5" />
+                        {plan.cta}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <p className="text-[11px] text-muted-foreground text-center mt-6">
+              All plans include encrypted data handling. Cancel anytime.
+            </p>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
-}
+};
+
+export default PricingModal;

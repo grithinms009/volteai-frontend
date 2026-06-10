@@ -1,4 +1,6 @@
 import { useState, useCallback } from "react";
+import { apiCall } from "@/hooks/useApi";
+import type { ApiResult } from "@/types/analysis";
 import { AnimatePresence, motion } from "framer-motion";
 import Navbar from "@/components/voltsave/Navbar";
 import HeroSection from "@/components/voltsave/HeroSection";
@@ -6,265 +8,190 @@ import ProblemSection from "@/components/voltsave/ProblemSection";
 import HowItWorks from "@/components/voltsave/HowItWorks";
 import ResultsPreview from "@/components/voltsave/ResultsPreview";
 import FinalCTA from "@/components/voltsave/FinalCTA";
-import AuthModal from "@/components/voltsave/AuthModal";
+import Footer from "@/components/voltsave/Footer";
 import UploadSection from "@/components/voltsave/UploadSection";
 import SetupDetails from "@/components/voltsave/SetupDetails";
 import ProcessingScreen from "@/components/voltsave/ProcessingScreen";
 import ResultsDashboard from "@/components/voltsave/ResultsDashboard";
+import ProfessionalResultsDashboard from "@/components/voltsave/ProfessionalResultsDashboard";
 import ProgressStepper from "@/components/voltsave/ProgressStepper";
 import PricingModal from "@/components/voltsave/PricingModal";
 import StateSelector from "@/components/voltsave/StateSelector";
-import ProviderSelector from "@/components/voltsave/ProviderSelector";
+import ProviderSelector, { Provider } from "@/components/voltsave/ProviderSelector";
 import { useAuth } from "@/hooks/useAuth";
-import { useCountry } from "@/hooks/useCountry";
-import { toast } from "sonner";
 
 type AppStep = "landing" | "state" | "provider" | "upload" | "setup" | "processing" | "results";
 
+const STEP_INDEX: Record<AppStep, number> = {
+  landing: 0, state: 0, provider: 1, upload: 2, setup: 2, processing: 3, results: 3,
+};
+
 const Index = () => {
+  const { isAuthenticated } = useAuth();
   const [step, setStep] = useState<AppStep>("landing");
-  const [showAuth, setShowAuth] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [selectedState, setSelectedState] = useState<string | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [billId, setBillId] = useState<string | null>(null);
   const [isDemo, setIsDemo] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [selectedState, setSelectedState] = useState<string | null>(null);
-  const [selectedProvider, setSelectedProvider] = useState<any>(null);
-  const { isAuthenticated } = useAuth();
-  const { country } = useCountry();
+  const [analysisResult, setAnalysisResult] = useState<ApiResult | null>(null);
 
-  const getStepperStep = (): number => {
-    switch (step) {
-      case "state": return 0;
-      case "provider": return 1;
-      case "upload": return 2;
-      case "setup": return 2;
-      case "processing": return 3;
-      case "results": return 3;
-      default: return 0;
-    }
-  };
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   const handleCTAClick = useCallback(() => {
-    if (isAuthenticated) {
-      setStep("state");
-    } else {
-      setShowAuth(true);
-    }
+    if (isAuthenticated) { setStep("state"); scrollTop(); }
+    else { setStep("state"); scrollTop(); } // Navbar handles auth gating
   }, [isAuthenticated]);
 
-  const handleAuthSuccess = () => {
-    setShowAuth(false);
-    setStep("state");
-  };
+  const handleStateSelect = useCallback((s: string) => {
+    setSelectedState(s); setStep("provider"); scrollTop();
+  }, []);
 
-  const handleStateSelect = (state: string) => {
-    setSelectedState(state);
-    setStep("provider");
-  };
+  const handleProviderSelect = useCallback((p: Provider) => {
+    setSelectedProvider(p); setStep("upload"); scrollTop();
+  }, []);
 
-  const handleProviderSelect = (provider: any) => {
-    setSelectedProvider(provider);
+  const handleProviderSkip = useCallback(() => {
+    setSelectedProvider(null); setStep("upload"); scrollTop();
+  }, []);
+
+  const handleUploadContinue = useCallback((info: { billId: string; isDemo: boolean }) => {
+    setBillId(info.billId);
+    setIsDemo(info.isDemo);
+    try { localStorage.setItem('lastBillId', info.billId); } catch {}
+    setStep("setup"); scrollTop();
+  }, []);
+
+  const handleSetupContinue = useCallback(() => {
+    setStep("processing"); scrollTop();
+  }, []);
+
+  const handleProcessingComplete = useCallback((result: ApiResult) => {
+    setAnalysisResult(result); setStep("results");
+  }, []);
+
+  const handleProcessingError = useCallback(() => {
     setStep("upload");
-  };
+  }, []);
 
-  const handleUploadContinue = (id: string | null, demo: boolean) => {
-    setBillId(id);
-    setIsDemo(demo);
-    if (id) localStorage.setItem('lastBillId', id);
-    setStep("setup");
-  };
-
-  const handleSetupContinue = () => {
-    setStep("processing");
-  };
-
-  const handleProcessingComplete = (result: any) => {
-    setAnalysisResult(result);
-    setStep("results");
-  };
-
-  const handleProcessingError = () => {
-    setStep("upload");
-    toast.error("Analysis failed. Please try again.");
-  };
-
-  const handleUnlock = () => {
-    setShowPricing(true);
-  };
-
-  const handleUnlockSuccess = () => {
-    // Update the analysis result to mark as paid
-    if (analysisResult) {
-      setAnalysisResult({ ...analysisResult, paid: true });
+  const handleUnlockSuccess = useCallback(async () => {
+    if (!billId || billId === "demo" || isDemo) {
+      setAnalysisResult((r: ApiResult | null) => r ? { ...r, paid: true } : r);
+      return;
     }
-  };
+    try {
+      const data = await apiCall<{ analysis: ApiResult; paid: boolean }>(`/api/bills/${billId}/analysis`);
+      setAnalysisResult({ ...(data.analysis ?? data), paid: true });
+    } catch {
+      // Fallback: just flip the paid flag locally
+      setAnalysisResult((r: ApiResult | null) => r ? { ...r, paid: true } : r);
+    }
+  }, [billId, isDemo]);
 
   return (
     <div className="min-h-screen bg-background">
-      <Navbar 
-        onPricingClick={() => setShowPricing(true)} 
-        onAuthClick={() => setShowAuth(true)} 
-        onLogoClick={() => setStep("landing")}
-      />
-      
-      {/* Progress Stepper - only show after auth */}
-      {step !== "landing" && (
-        <div className="pt-20 pb-4">
-          <ProgressStepper currentStep={getStepperStep()} />
-        </div>
-      )}
-      
-      <AnimatePresence mode="wait">
-        {step === "landing" && (
+      <Navbar />
+
+      <div className="pt-14">
+        {step !== "landing" && (
           <motion.div
-            key="landing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-          >
-            <HeroSection onStartClick={handleCTAClick} />
-            <ProblemSection />
-            <HowItWorks />
-            <ResultsPreview />
-            <FinalCTA onStartClick={handleCTAClick} />
-          </motion.div>
-        )}
-        
-        {step === "state" && (
-          <motion.div
-            key="state"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="py-8"
+            className="border-b border-slate-200 bg-white/95 backdrop-blur-md sticky top-14 z-40"
           >
-            <div className="text-center mb-8">
-              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 1 of 3</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Select Your State</h2>
-              <p className="text-muted-foreground text-sm">We'll find the right electricity providers for you</p>
-            </div>
-            <StateSelector onSelect={handleStateSelect} />
+            <ProgressStepper currentStep={STEP_INDEX[step]} />
           </motion.div>
         )}
 
-        {step === "provider" && selectedState && (
-          <motion.div
-            key="provider"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="py-8"
-          >
-            <div className="text-center mb-8">
-              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 2 of 3</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Select Your Provider</h2>
-              <p className="text-muted-foreground text-sm">{selectedState} electricity board</p>
-            </div>
-            <ProviderSelector
-              state={selectedState}
-              onSelect={handleProviderSelect}
-              onBack={() => setStep("state")}
-              onSkip={() => { setSelectedProvider(null); setStep("upload"); }}
-            />
-          </motion.div>
-        )}
+        <AnimatePresence mode="wait">
+          {step === "landing" && (
+            <motion.div key="landing" exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <HeroSection onAnalyze={handleCTAClick} />
+              <ProblemSection />
+              <HowItWorks />
+              <ResultsPreview />
+              <FinalCTA onUpload={handleCTAClick} />
+              <Footer />
+            </motion.div>
+          )}
 
-        {step === "upload" && (
-          <motion.div
-            key="upload"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="py-8"
-          >
-            <div className="text-center mb-8">
-              <p className="text-xs font-semibold text-accent uppercase tracking-wider mb-2">Step 3 of 3</p>
-              <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2">Upload Your Bill</h2>
-              {selectedProvider && (
-                <p className="text-muted-foreground text-sm">{selectedProvider.name} • {selectedState}</p>
-              )}
-            </div>
-            <UploadSection
-              onContinue={handleUploadContinue}
-              providerId={selectedProvider?.id}
-              countryCode={country.code}
-            />
-          </motion.div>
-        )}
+          {step === "state" && (
+            <motion.div key="state" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <StateSelector onSelect={handleStateSelect} />
+            </motion.div>
+          )}
 
-        {step === "setup" && (
-          <motion.div
-            key="setup"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="py-8"
-          >
-            <div className="text-center mb-8">
-              <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2">Setup Details</h2>
-              <p className="text-foreground/60">Tell us about your appliances for accurate analysis</p>
-            </div>
-            <SetupDetails onContinue={handleSetupContinue} />
-          </motion.div>
-        )}
+          {step === "provider" && selectedState && (
+            <motion.div key="provider" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <ProviderSelector
+                state={selectedState}
+                onSelect={handleProviderSelect}
+                onSkip={handleProviderSkip}
+              />
+            </motion.div>
+          )}
 
-        {step === "processing" && (
-          <motion.div
-            key="processing"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="py-8"
-          >
-            <ProcessingScreen 
-              billId={billId} 
-              onComplete={handleProcessingComplete}
-              onError={handleProcessingError}
-            />
-          </motion.div>
-        )}
+          {step === "upload" && (
+            <motion.div key="upload" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <UploadSection
+                onStartAnalysis={handleUploadContinue}
+                providerId={selectedProvider?.id ?? null}
+              />
+            </motion.div>
+          )}
 
-        {step === "results" && analysisResult && (
-          <motion.div
-            key="results"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="py-8"
-          >
-            <ResultsDashboard 
-              result={analysisResult} 
-              billId={billId}
-              onUnlock={handleUnlock}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+          {step === "setup" && (
+            <motion.div key="setup" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <SetupDetails onContinue={handleSetupContinue} />
+            </motion.div>
+          )}
 
-      {/* Sticky mobile CTA for results page */}
-      {step === "results" && analysisResult && !analysisResult.paid && (
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-background/80 backdrop-blur-lg border-t border-border md:hidden z-40">
-          <button 
-            onClick={handleUnlock}
-            className="w-full gradient-cta text-white py-3 rounded-lg font-medium"
-          >
-            Unlock Full Report — ₹199
-          </button>
-        </div>
-      )}
+          {step === "processing" && (
+            <motion.div key="processing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.3 }}>
+              <ProcessingScreen
+                billId={billId}
+                isDemo={isDemo}
+                onComplete={handleProcessingComplete}
+                onError={handleProcessingError}
+              />
+            </motion.div>
+          )}
 
-      <AuthModal 
-        isOpen={showAuth} 
-        onClose={() => setShowAuth(false)} 
-        onSuccess={handleAuthSuccess} 
-      />
-      
-      <PricingModal 
-        isOpen={showPricing} 
-        onClose={() => setShowPricing(false)} 
+          {step === "results" && (
+            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+              <ProfessionalResultsDashboard
+                result={analysisResult}
+                billId={billId}
+                onUnlock={() => setShowPricing(true)}
+                onRefetch={handleUnlockSuccess}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      <PricingModal
+        open={showPricing}
+        onClose={() => setShowPricing(false)}
+        billId={billId}
+        isDemo={isDemo}
         onUnlockSuccess={handleUnlockSuccess}
       />
+
+      {step === "results" && !analysisResult?.paid && (
+        <motion.div
+          initial={{ y: 100 }}
+          animate={{ y: 0 }}
+          className="fixed bottom-0 left-0 right-0 p-4 bg-background/90 backdrop-blur-xl border-t border-border md:hidden z-50"
+        >
+          <button
+            onClick={() => setShowPricing(true)}
+            className="w-full py-3.5 rounded-xl bg-primary text-primary-foreground font-semibold text-sm"
+          >
+            ⚡ Unlock Full Report — ₹199
+          </button>
+        </motion.div>
+      )}
     </div>
   );
 };

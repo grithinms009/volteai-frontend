@@ -1,208 +1,121 @@
 import { motion } from "framer-motion";
-import { Zap, ChevronLeft, ChevronRight, Info, SkipForward, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { API_BASE } from "@/hooks/useApi";
+import { useEffect, useState } from "react";
+import { Building2, ChevronRight, SkipForward, Zap } from "lucide-react";
+import { apiCall } from "@/hooks/useApi";
 import { useCountry } from "@/hooks/useCountry";
 
 export interface Provider {
   id: string;
   name: string;
-  shortName: string;
-  state: string;
-  stateCode: string;
-  tariffType: string;
-  slabCount: number;
-  lowestRate: number;
-  highestRate: number;
-  avgMonthlyUnits: number;
-  hasPeakHours: boolean;
+  shortName?: string;
+  state?: string;
+  stateCode?: string;
+  tariffType?: string;
+  slabCount?: number;
+  lowestRate?: number;
+  highestRate?: number;
+  avgMonthlyUnits?: number;
+  hasPeakHours?: boolean;
 }
 
-interface ProviderSelectorProps {
+interface Props {
   state: string;
-  onSelect: (provider: Provider) => void;
-  onBack: () => void;
+  onSelect: (p: Provider) => void;
   onSkip: () => void;
 }
 
-const ProviderSelector = ({ state, onSelect, onBack, onSkip }: ProviderSelectorProps) => {
-  const [selected, setSelected] = useState<Provider | null>(null);
-  const [showTariff, setShowTariff] = useState<string | null>(null);
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(false);
+const ProviderSelector = ({ state, onSelect, onSkip }: Props) => {
   const { country } = useCountry();
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [picked, setPicked] = useState<Provider | null>(null);
 
   useEffect(() => {
-    const fetchProviders = async () => {
-      setLoading(true);
-      setError(false);
-      try {
-        const res = await fetch(`${API_BASE}/api/providers?country=${country.code}`);
-        if (!res.ok) throw new Error("Failed");
-        const data = await res.json();
-        const all: Provider[] = data.providers ?? [];
-        // Filter to selected state
-        const forState = all.filter(
-          (p) => p.state?.toLowerCase() === state.toLowerCase()
-        );
-        setProviders(forState);
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProviders();
-  }, [state, country.code]);
-
-  const noProviders = !loading && !error && providers.length === 0;
+    let cancelled = false;
+    setLoading(true);
+    apiCall<{ providers: Provider[] }>(`/api/providers?country=${country.code}`)
+      .then((r) => {
+        if (cancelled) return;
+        const all = r?.providers || [];
+        const forState = all.filter((p) => !state || p.state === state);
+        setProviders(forState.length ? forState : all);
+      })
+      .catch(() => setProviders([]))
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
+  }, [country.code, state]);
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-2xl mx-auto"
-    >
-      <div className="glass-card p-6 md:p-8">
-        {/* Back breadcrumb */}
-        <div className="flex items-center gap-2 mb-5 text-sm text-muted-foreground">
-          <button onClick={onBack} className="hover:text-foreground transition-colors flex items-center gap-1">
-            <ChevronLeft className="w-4 h-4" />
-            {state}
-          </button>
-        </div>
+    <section className="wizard-section">
+      <div className="container mx-auto px-4 max-w-2xl">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="wizard-title">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-1">Select your electricity provider</h2>
+          <p className="text-xs text-muted-foreground">{state} • we'll match the right slab structure</p>
+        </motion.div>
 
-        {/* Loading */}
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-10 text-muted-foreground text-sm">
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Loading providers for {state}...
-          </div>
-        )}
-
-        {/* Error */}
-        {error && (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            <p>Could not load providers. You can skip and let AI auto-detect.</p>
-          </div>
-        )}
-
-        {/* No providers found */}
-        {noProviders && (
-          <div className="text-center py-6 text-sm text-muted-foreground">
-            <p>No providers listed for <strong className="text-foreground">{state}</strong> yet.</p>
-            <p className="mt-1">AI will auto-detect your provider from the bill.</p>
-          </div>
-        )}
-
-        {/* Provider cards */}
-        {!loading && providers.length > 0 && (
-          <div className="space-y-3">
-            {providers.map((provider) => (
-              <motion.div
-                key={provider.id}
-                whileHover={{ scale: 1.005 }}
-                onClick={() => setSelected(provider)}
-                className={`p-4 rounded-xl border cursor-pointer transition-all duration-200 ${
-                  selected?.id === provider.id
-                    ? "border-primary bg-primary/5"
-                    : "border-border hover:border-primary/40"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <Zap className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-foreground text-sm">{provider.shortName}</p>
-                        {provider.hasPeakHours && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20">
-                            Time-of-Use
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground truncate">{provider.name}</p>
+        <div className="glass-card p-4">
+          {loading ? (
+            <p className="text-xs text-muted-foreground text-center py-8">Loading providers…</p>
+          ) : providers.length ? (
+            <div className="space-y-2 max-h-[48svh] overflow-y-auto pr-1">
+              {providers.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setPicked(p)}
+                  className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-left border transition-all ${
+                    picked?.id === p.id
+                      ? "bg-primary/10 border-primary/50"
+                      : "bg-secondary/30 border-border hover:border-primary/30"
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                    picked?.id === p.id ? "bg-primary/20" : "bg-secondary"
+                  }`}>
+                    <Building2 className={`w-4 h-4 ${picked?.id === p.id ? "text-primary" : "text-muted-foreground"}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">{p.name}</p>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                      {p.tariffType && <span>{p.tariffType}</span>}
+                      {typeof p.lowestRate === "number" && typeof p.highestRate === "number" && (
+                        <span>• ₹{p.lowestRate}–{p.highestRate}/unit</span>
+                      )}
+                      {p.hasPeakHours && (
+                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-primary/15 text-primary"><Zap className="w-2.5 h-2.5"/>Peak</span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setShowTariff(showTariff === provider.id ? null : provider.id);
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-secondary transition-colors"
-                    >
-                      <Info className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                    {selected?.id === provider.id && (
-                      <span className="text-xs font-medium text-primary bg-primary/10 px-2 py-1 rounded-lg flex-shrink-0">
-                        Selected ✓
-                      </span>
-                    )}
-                  </div>
-                </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No providers found for {state}. You can skip and continue.
+            </p>
+          )}
 
-                {showTariff === provider.id && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    className="mt-3 pt-3 border-t border-border grid grid-cols-3 gap-3"
-                  >
-                    <div>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Tariff Type</p>
-                      <p className="text-sm font-medium text-foreground capitalize">{provider.tariffType} ({provider.slabCount} slabs)</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Rate Range</p>
-                      <p className="text-sm font-medium text-foreground">
-                        {country.symbol}{provider.lowestRate} – {country.symbol}{provider.highestRate}/unit
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Avg. Usage</p>
-                      <p className="text-sm font-medium text-foreground">{provider.avgMonthlyUnits} units/mo</p>
-                    </div>
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
-          </div>
-        )}
-
-        {/* Actions */}
-        {!loading && (
-          <div className="mt-5 flex flex-col gap-2.5">
-            <motion.button
-              onClick={() => selected && onSelect(selected)}
-              disabled={!selected && !noProviders && !error}
-              className={`w-full py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-                selected || noProviders || error
-                  ? "bg-primary text-primary-foreground hover:brightness-110"
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={onSkip}
+              className="px-4 py-2.5 rounded-lg text-sm text-muted-foreground border border-border hover:text-foreground hover:border-primary/30 transition-all flex items-center gap-2"
+            >
+              <SkipForward className="w-4 h-4" /> Skip
+            </button>
+            <button
+              disabled={!picked}
+              onClick={() => picked && onSelect(picked)}
+              className={`flex-1 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+                picked
+                  ? "bg-primary text-primary-foreground hover:brightness-110 shadow-[0_0_20px_hsla(217,91%,60%,0.15)]"
                   : "bg-secondary text-muted-foreground cursor-not-allowed"
               }`}
-              whileHover={selected || noProviders || error ? { scale: 1.01 } : {}}
-              whileTap={selected || noProviders || error ? { scale: 0.99 } : {}}
             >
-              {noProviders || error ? "Continue — AI will detect provider" : "Next — Upload Bill"}
-              <ChevronRight className="w-4 h-4" />
-            </motion.button>
-
-            {!noProviders && !error && (
-              <button
-                onClick={onSkip}
-                className="w-full py-2.5 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/40 flex items-center justify-center gap-2 transition-colors"
-              >
-                <SkipForward className="w-4 h-4" />
-                Skip — AI will detect from bill
-              </button>
-            )}
+              Continue <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
-        )}
+        </div>
       </div>
-    </motion.div>
+    </section>
   );
 };
 

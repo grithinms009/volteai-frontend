@@ -1,9 +1,9 @@
 import { motion } from "framer-motion";
-import { Check, MapPin, Zap, Upload, BarChart3 } from "lucide-react";
+import { Check, MapPin, Building2, Upload, BarChart3 } from "lucide-react";
 
 const STEPS = [
   { label: "Select State", icon: MapPin },
-  { label: "Provider", icon: Zap },
+  { label: "Provider", icon: Building2 },
   { label: "Upload Bill", icon: Upload },
   { label: "Results", icon: BarChart3 },
 ];
@@ -14,12 +14,12 @@ interface ProgressStepperProps {
 
 const ProgressStepper = ({ currentStep }: ProgressStepperProps) => {
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 py-6">
+    <div className="w-full max-w-lg mx-auto px-4 py-2">
       <div className="flex items-center justify-between relative">
         {/* Connector line */}
-        <div className="absolute top-5 left-[10%] right-[10%] h-px bg-border" />
+        <div className="absolute top-3 left-[10%] right-[10%] h-px bg-border" />
         <motion.div
-          className="absolute top-5 left-[10%] h-px bg-primary origin-left"
+          className="absolute top-3 left-[10%] h-px bg-primary origin-left"
           initial={{ scaleX: 0 }}
           animate={{ scaleX: currentStep / (STEPS.length - 1) }}
           style={{ width: "80%" }}
@@ -30,9 +30,9 @@ const ProgressStepper = ({ currentStep }: ProgressStepperProps) => {
           const done = i < currentStep;
           const active = i === currentStep;
           return (
-            <div key={step.label} className="relative z-10 flex flex-col items-center gap-2">
+            <div key={step.label} className="relative z-10 flex flex-col items-center gap-1">
               <motion.div
-                className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors duration-300 ${
+                className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors duration-300 ${
                   done
                     ? "bg-primary border-primary"
                     : active
@@ -44,13 +44,13 @@ const ProgressStepper = ({ currentStep }: ProgressStepperProps) => {
                 transition={{ duration: 0.4 }}
               >
                 {done ? (
-                  <Check className="w-4 h-4 text-primary-foreground" />
+                  <Check className="w-3 h-3 text-primary-foreground" />
                 ) : (
-                  <step.icon className={`w-4 h-4 ${active ? "text-primary" : "text-muted-foreground"}`} />
+                  <step.icon className={`w-3 h-3 ${active ? "text-primary" : "text-muted-foreground"}`} />
                 )}
               </motion.div>
               <span
-                className={`text-[11px] font-medium transition-colors hidden sm:block ${
+                className={`text-[10px] font-medium transition-colors hidden sm:block ${
                   done || active ? "text-foreground" : "text-muted-foreground"
                 }`}
               >

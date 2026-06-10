@@ -13,7 +13,7 @@ export class ApiError extends Error {
   }
 }
 
-export const apiCall = async (path: string, options?: RequestInit): Promise<any> => {
+export const apiCall = async <T = any>(path: string, options?: RequestInit): Promise<T> => {
   const token = localStorage.getItem('token');
   
   const headers: Record<string, string> = {
@@ -50,13 +50,13 @@ export const apiCall = async (path: string, options?: RequestInit): Promise<any>
   if (contentType && contentType.includes('application/json')) {
     return res.json();
   }
-  return res.text();
+  return res.text() as unknown as T;
 };
 
-export const apiUpload = async (
+export const apiUpload = async <T = any>(
   path: string, 
   formData: FormData
-): Promise<any> => {
+): Promise<T> => {
   const token = localStorage.getItem('token');
   
   const res = await fetch(`${API_BASE}${path}`, {

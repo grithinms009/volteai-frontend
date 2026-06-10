@@ -1,156 +1,102 @@
 import { motion } from "framer-motion";
-import { Search, MapPin, ChevronRight, Loader2 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { API_BASE } from "@/hooks/useApi";
+import { useEffect, useMemo, useState } from "react";
+import { ChevronRight, MapPin, Search } from "lucide-react";
+import { apiCall } from "@/hooks/useApi";
 import { useCountry } from "@/hooks/useCountry";
 
-const POPULAR_STATES = ["Kerala", "Maharashtra", "Karnataka", "Tamil Nadu", "Delhi", "Gujarat"];
-
-const FALLBACK_STATES = [
-  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
-  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
-  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
-  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana",
-  "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
-  "Delhi", "Chandigarh", "Puducherry", "Jammu & Kashmir", "Ladakh",
+const FALLBACK_STATES_IN = [
+  "Andhra Pradesh","Assam","Bihar","Chhattisgarh","Delhi","Goa","Gujarat","Haryana",
+  "Himachal Pradesh","Jharkhand","Karnataka","Kerala","Madhya Pradesh","Maharashtra",
+  "Odisha","Punjab","Rajasthan","Tamil Nadu","Telangana","Uttar Pradesh","Uttarakhand","West Bengal",
 ];
 
-interface ApiState {
-  code: string;
-  name: string;
-}
-
-interface StateSelectorProps {
+interface Props {
   onSelect: (state: string) => void;
 }
 
-const StateSelector = ({ onSelect }: StateSelectorProps) => {
+const StateSelector = ({ onSelect }: Props) => {
   const { country } = useCountry();
-  const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [allStates, setAllStates] = useState<string[]>(FALLBACK_STATES);
+  const [states, setStates] = useState<string[]>(country.code === "IN" ? FALLBACK_STATES_IN : []);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [picked, setPicked] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchStates = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch(`${API_BASE}/api/providers/states?country=${country.code}`);
-        if (!res.ok) throw new Error("Failed");
-        const data = await res.json();
-        if (data.states && data.states.length > 0) {
-          setAllStates(data.states.map((s: ApiState) => s.name).sort());
-        }
-      } catch {
-        // Keep fallback
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStates();
+    let cancelled = false;
+    setLoading(true);
+    apiCall<{ states: { code: string; name: string }[] }>(`/api/providers/states?country=${country.code}`)
+      .then((r) => {
+        if (cancelled) return;
+        const list = (r?.states || []).map((s) => s.name).filter(Boolean);
+        if (list.length) setStates(list);
+      })
+      .catch(() => {
+        if (country.code === "IN" && !cancelled) setStates(FALLBACK_STATES_IN);
+      })
+      .finally(() => !cancelled && setLoading(false));
+    return () => { cancelled = true; };
   }, [country.code]);
 
-  const filtered = allStates.filter((s) =>
-    s.toLowerCase().includes(search.toLowerCase())
+  const filtered = useMemo(
+    () => states.filter((s) => s.toLowerCase().includes(query.toLowerCase())),
+    [states, query]
   );
 
-  const popular = POPULAR_STATES.filter((s) => allStates.includes(s));
-
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="max-w-xl mx-auto"
-    >
-      <div className="glass-card p-6 md:p-8">
-        {/* Search */}
-        <div className="relative mb-5">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search your state..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-secondary/50 border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 transition-colors text-sm"
-          />
+    <section className="wizard-section">
+      <div className="container mx-auto px-4 max-w-2xl">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="wizard-title">
+          <h2 className="text-xl md:text-2xl font-bold text-foreground mb-1">Select your state</h2>
+          <p className="text-xs text-muted-foreground">We use your state to fetch the right tariff & providers</p>
+        </motion.div>
+
+        <div className="glass-card p-4">
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={`Search ${country.name} states...`}
+              className="w-full pl-9 pr-3 py-2 rounded-lg bg-secondary/50 border border-border text-foreground text-sm focus:outline-none focus:border-primary/50"
+            />
+          </div>
+
+          {loading && <p className="text-xs text-muted-foreground text-center py-4">Loading states…</p>}
+
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-[44svh] overflow-y-auto pr-1">
+            {filtered.map((s) => (
+              <button
+                key={s}
+                onClick={() => setPicked(s)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-left transition-all border ${
+                  picked === s
+                    ? "bg-primary/15 border-primary/50 text-foreground"
+                    : "bg-secondary/30 border-border text-muted-foreground hover:border-primary/30 hover:text-foreground"
+                }`}
+              >
+                <MapPin className={`w-3.5 h-3.5 flex-shrink-0 ${picked === s ? "text-primary" : ""}`} />
+                <span className="truncate">{s}</span>
+              </button>
+            ))}
+            {!loading && !filtered.length && (
+              <p className="col-span-full text-xs text-muted-foreground text-center py-4">No matches</p>
+            )}
+          </div>
+
+          <button
+            disabled={!picked}
+            onClick={() => picked && onSelect(picked)}
+            className={`w-full mt-4 py-2.5 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
+              picked
+                ? "bg-primary text-primary-foreground hover:brightness-110 shadow-[0_0_20px_hsla(217,91%,60%,0.15)]"
+                : "bg-secondary text-muted-foreground cursor-not-allowed"
+            }`}
+          >
+            Continue <ChevronRight className="w-4 h-4" />
+          </button>
         </div>
-
-        {loading && (
-          <div className="flex items-center justify-center gap-2 py-4 text-muted-foreground text-sm">
-            <Loader2 className="w-4 h-4 animate-spin" />
-            Loading states...
-          </div>
-        )}
-
-        {!search && !loading && popular.length > 0 && (
-          <div className="mb-5">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              Popular States
-            </p>
-            <div className="grid grid-cols-3 gap-2">
-              {popular.map((state) => (
-                <button
-                  key={state}
-                  onClick={() => setSelected(state)}
-                  className={`px-3 py-2 rounded-lg border text-sm font-medium transition-all duration-200 ${
-                    selected === state
-                      ? "border-primary bg-primary/10 text-primary"
-                      : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                  }`}
-                >
-                  {state}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!loading && (
-          <div>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-              {search ? "Results" : "All States"}
-            </p>
-            <div className="max-h-52 overflow-y-auto space-y-1 pr-1">
-              {filtered.length === 0 && (
-                <p className="text-sm text-muted-foreground text-center py-4">No states found</p>
-              )}
-              {filtered.map((state) => (
-                <button
-                  key={state}
-                  onClick={() => setSelected(state)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-left text-sm transition-colors ${
-                    selected === state
-                      ? "bg-primary/10 text-primary border border-primary/30"
-                      : "text-muted-foreground hover:text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
-                  {state}
-                  {selected === state && (
-                    <span className="ml-auto text-xs font-medium text-primary">✓</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <motion.button
-          onClick={() => selected && onSelect(selected)}
-          disabled={!selected}
-          className={`w-full mt-6 py-3.5 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition-all ${
-            selected
-              ? "bg-primary text-primary-foreground hover:brightness-110"
-              : "bg-secondary text-muted-foreground cursor-not-allowed"
-          }`}
-          whileHover={selected ? { scale: 1.01 } : {}}
-          whileTap={selected ? { scale: 0.99 } : {}}
-        >
-          Next — Select Provider
-          <ChevronRight className="w-4 h-4" />
-        </motion.button>
       </div>
-    </motion.div>
+    </section>
   );
 };
 

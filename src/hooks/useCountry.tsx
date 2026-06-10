@@ -12,11 +12,6 @@ export const COUNTRIES: Country[] = [
   { code: "IN", name: "India", flag: "🇮🇳", currency: "INR", symbol: "₹" },
   { code: "US", name: "United States", flag: "🇺🇸", currency: "USD", symbol: "$" },
   { code: "GB", name: "United Kingdom", flag: "🇬🇧", currency: "GBP", symbol: "£" },
-  { code: "DE", name: "Germany", flag: "🇩🇪", currency: "EUR", symbol: "€" },
-  { code: "AU", name: "Australia", flag: "🇦🇺", currency: "AUD", symbol: "A$" },
-  { code: "JP", name: "Japan", flag: "🇯🇵", currency: "JPY", symbol: "¥" },
-  { code: "BR", name: "Brazil", flag: "🇧🇷", currency: "BRL", symbol: "R$" },
-  { code: "CA", name: "Canada", flag: "🇨🇦", currency: "CAD", symbol: "C$" },
 ];
 
 const TZ_MAP: Record<string, string> = {

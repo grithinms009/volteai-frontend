@@ -1,211 +1,97 @@
 import { motion } from "framer-motion";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiCall } from "@/hooks/useApi";
-import { toast } from "sonner";
+import { DEMO_RESULT } from "@/lib/demoResult";
+import type { ApiResult } from "@/types/analysis";
 
 interface ProcessingScreenProps {
   billId: string | null;
-  onComplete: (result: any) => void;
-  onError: () => void;
+  isDemo?: boolean;
+  onComplete: (result: ApiResult) => void;
+  onError?: (err: Error) => void;
 }
 
 const STEPS = [
-  "Extracting bill data via OCR...",
-  "Identifying tariff structure...",
-  "Analyzing consumption patterns...",
-  "Detecting peak usage windows...",
-  "Generating savings recommendations...",
+  { label: "Uploading bill...", progress: 10 },
+  { label: "Reading bill...", progress: 35 },
+  { label: "Extracting fields...", progress: 60 },
+  { label: "Running analysis engines...", progress: 75 },
+  { label: "Generating AI summary...", progress: 92 },
+  { label: "Done!", progress: 100 },
 ];
 
-const MIN_DISPLAY_TIME_MS = 5000;
+const MAX_POLLS = 60; // 3 min timeout at 3s interval
 
-const DEMO_RESULT = {
-  provider: 'KSEB',
-  state: 'Kerala',
-  billingMonth: 'April 2024',
-  totalUnits: 215,
-  effectiveRate: 7.35,
-  effectiveRateCurrency: 'INR',
-  rateVsRegionAvg: 6.50,
-  rateVsRegionAvgPct: 13,
-  rateStatus: 'above_average',
-  usageIntensity: 'high',
-  usageVsAvgPct: 20,
-  avgRegionalUsage: 180,
-  efficiencyScore: 68,
-  monthlySavingsEstimate: 450,
-  annualSavingsEstimate: 5400,
-  potentialSavingsPct: 23,
-  currentBill: 1580,
-  optimizedBill: 1130,
-  peakWasteHours: 4.2,
-  // Slab optimization
-  slabAlert: {
-    currentUnits: 215,
-    currentSlab: '201–250 units',
-    currentRate: 7.60,
-    targetUnits: 200,
-    targetSlab: '151–200 units',
-    targetRate: 6.40,
-    unitsToReduce: 15,
-    potentialSaving: 180,
-  },
-  // Key findings
-  findings: [
-    { severity: 'high', title: 'Above Average Consumption', description: 'Your 215 units is 20% higher than similar homes in Kerala (avg 180 units).' },
-    { severity: 'medium', title: 'High Effective Rate', description: "You're paying ₹7.35/unit vs ₹6.50 regional average — 13% above average." },
-    { severity: 'low', title: 'No Outstanding Arrears', description: 'Your account is in good standing with no pending dues.' },
-  ],
-  topIssues: [
-    { title: 'High usage during peak hours (6–9 PM)', description: 'Heavy appliances running during expensive peak window.', severity: 'high' },
-    { title: 'Idle devices consuming 340W standby', description: 'Multiple devices left on standby mode.', severity: 'high' },
-    { title: 'AC running at suboptimal temperature', description: 'AC set below 24°C increases consumption by 6% per degree.', severity: 'medium' },
-    { title: 'Water heater on timer not set', description: 'Heating water all day adds unnecessary load.', severity: 'medium' },
-    { title: 'Old refrigerator — pre 3-star rating', description: 'Old models consume 40% more than modern 5-star units.', severity: 'low' },
-  ],
-  recommendations: [
-    { text: 'Reduce usage by 15 units to drop to lower slab — saves ₹180/mo', icon: '📉' },
-    { text: 'Set AC to 24°C — saves 10–15% on cooling costs (₹400/mo)', icon: '🌡️' },
-    { text: 'Consider 2kW solar rooftop — offset 60% of bill, 6-yr payback', icon: '☀️' },
-    { text: 'Use smart plugs to eliminate 340W standby drain', icon: '🔌' },
-    { text: 'Shift heavy loads (washing, ironing) to off-peak hours', icon: '⏰' },
-    { text: 'Set water heater timer to 30-min before use only', icon: '🚿' },
-    { text: 'Replace old refrigerator with 5-star BEE rated model', icon: '⭐' },
-    { text: 'Install LED lighting throughout — saves 8% on lighting load', icon: '💡' },
-  ],
-  highConsumptionDevices: [
-    { name: 'Air Conditioner', kwh: 82, percentage: 38 },
-    { name: 'Water Heater', kwh: 43, percentage: 20 },
-    { name: 'Refrigerator', kwh: 32, percentage: 15 },
-    { name: 'Washing Machine', kwh: 19, percentage: 9 },
-    { name: 'Lighting', kwh: 13, percentage: 6 },
-    { name: 'TV + Set-top', kwh: 8, percentage: 4 },
-  ],
-  // Bill breakdown (paid)
-  billBreakdown: {
-    slabs: [
-      { range: '0–50 units', units: 50, rate: 3.15, amount: 157.50 },
-      { range: '51–100 units', units: 50, rate: 3.70, amount: 185.00 },
-      { range: '101–150 units', units: 50, rate: 4.80, amount: 240.00 },
-      { range: '151–200 units', units: 50, rate: 6.40, amount: 320.00 },
-      { range: '201–250 units', units: 15, rate: 7.60, amount: 114.00 },
-    ],
-    energyCharge: 1016.50,
-    fixedCharge: 125.00,
-    fuelSurcharge: 21.50,
-    electricityDuty: 116.30,
-    total: 1279.30,
-  },
-  // Solar potential (paid)
-  solar: {
-    recommendedKw: 2,
-    estimatedCostMin: 100000,
-    estimatedCostMax: 120000,
-    subsidy: 30000,
-    subsidyScheme: 'PM Surya Ghar',
-    netCostMin: 70000,
-    netCostMax: 90000,
-    monthlyGeneration: 240,
-    monthlySavingsMin: 800,
-    monthlySavingsMax: 1000,
-    paybackYears: '6–7',
-    netMeteringRate: 3.22,
-  },
-  // Monthly projection (paid)
-  monthlyProjection: [
-    { month: 'Jan', units: 175 }, { month: 'Feb', units: 168 },
-    { month: 'Mar', units: 190 }, { month: 'Apr', units: 215 },
-    { month: 'May', units: 260 }, { month: 'Jun', units: 245 },
-    { month: 'Jul', units: 230 }, { month: 'Aug', units: 225 },
-    { month: 'Sep', units: 200 }, { month: 'Oct', units: 185 },
-    { month: 'Nov', units: 178 }, { month: 'Dec', units: 172 },
-  ],
-  tariffModel: 'tiered',
-  confidenceLevel: 'high',
-  paid: false,
-};
-
-const ProcessingScreen = ({ billId, onComplete, onError }: ProcessingScreenProps) => {
+const ProcessingScreen = ({ billId, isDemo, onComplete, onError }: ProcessingScreenProps) => {
+  const [apiProgress, setApiProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
-  const [status, setStatus] = useState<'processing' | 'completed' | 'failed'>('processing');
-  const startTimeRef = useRef(Date.now());
-  const hasCompletedRef = useRef(false);
+  const finished = useRef(false);
 
-  // Handle completion with minimum delay
-  const handleCompletion = (result: any) => {
-    if (hasCompletedRef.current) return;
-    
-    const elapsed = Date.now() - startTimeRef.current;
-    const remaining = MIN_DISPLAY_TIME_MS - elapsed;
+  // Drive visible step from API progress milestones
+  useEffect(() => {
+    const idx = STEPS.findIndex(s => apiProgress < s.progress);
+    setCurrentStep(idx === -1 ? STEPS.length - 1 : Math.max(0, idx - 1));
+  }, [apiProgress]);
 
-    if (remaining > 0) {
-      setTimeout(() => {
-        if (!hasCompletedRef.current) {
-          hasCompletedRef.current = true;
-          onComplete(result);
-        }
-      }, remaining);
-    } else {
-      hasCompletedRef.current = true;
-      onComplete(result);
+  useEffect(() => {
+    if (finished.current) return;
+    if (isDemo || billId === "demo" || !billId) {
+      // Simulate progress for demo
+      let p = 0;
+      const tick = setInterval(() => {
+        p = Math.min(100, p + 14);
+        setApiProgress(p);
+        if (p >= 100) clearInterval(tick);
+      }, 700);
+      const t = setTimeout(() => {
+        finished.current = true;
+        clearInterval(tick);
+        setApiProgress(100);
+        setCurrentStep(STEPS.length - 1);
+        onComplete(DEMO_RESULT);
+      }, 4200);
+      return () => { clearInterval(tick); clearTimeout(t); };
     }
-  };
 
-  // Animate steps
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentStep(prev => {
-        if (prev >= STEPS.length - 1) {
-          clearInterval(interval);
-          return prev;
-        }
-        return prev + 1;
-      });
-    }, 700);
-    return () => clearInterval(interval);
-  }, []);
+    let cancelled = false;
+    let attempts = 0;
 
-  // Poll backend status
-  useEffect(() => {
-    if (!billId || billId === 'demo') return;
-
-    const pollStatus = async () => {
+    const poll = async () => {
+      if (cancelled) return;
+      attempts++;
       try {
-        const response = await apiCall(`/api/bills/${billId}/status`);
-        
-        if (response.status === 'completed') {
-          setStatus('completed');
-          handleCompletion(response.analysisResult);
-        } else if (response.status === 'failed') {
-          setStatus('failed');
-          toast.error(response.error || 'Analysis failed');
-          onError();
+        const r = await apiCall<any>(`/api/bills/${billId}/status`);
+
+        // Update progress bar from API
+        if (typeof r?.progress === "number") {
+          setApiProgress(r.progress);
         }
-      } catch (err: any) {
-        console.error('Polling error:', err);
+
+        if (r?.status === "completed" && r?.analysisResult) {
+          finished.current = true;
+          setApiProgress(100);
+          setCurrentStep(STEPS.length - 1);
+          onComplete(r.analysisResult as ApiResult);
+          return;
+        }
+        if (r?.status === "failed") {
+          throw new Error(r.error || "Bill processing failed");
+        }
+      } catch (e: any) {
+        if (attempts >= MAX_POLLS) {
+          onError?.(e);
+          return;
+        }
       }
+      if (!cancelled) setTimeout(poll, 3000);
     };
 
-    const interval = setInterval(pollStatus, 3000);
-    pollStatus();
-
-    return () => clearInterval(interval);
-  }, [billId]);
-
-  // Handle demo mode
-  useEffect(() => {
-    if (billId === 'demo') {
-      const timer = setTimeout(() => {
-        setStatus('completed');
-        handleCompletion(DEMO_RESULT);
-      }, Math.max(MIN_DISPLAY_TIME_MS, STEPS.length * 700 + 500));
-
-      return () => clearTimeout(timer);
-    }
-  }, [billId]);
+    poll();
+    return () => { cancelled = true; };
+  }, [billId, isDemo, onComplete, onError]);
 
   return (
-    <section className="min-h-[70vh] flex items-center justify-center py-8">
+    <section className="min-h-screen flex items-center justify-center">
       <div className="container mx-auto px-4 max-w-lg text-center">
         {/* Scan visualization */}
         <motion.div
@@ -234,15 +120,23 @@ const ProcessingScreen = ({ billId, onComplete, onError }: ProcessingScreenProps
           <motion.div
             animate={{ scale: [1, 1.1, 1] }}
             transition={{ duration: 2, repeat: Infinity }}
-            className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/20 flex items-center justify-center shadow-[0_0_30px_rgba(59,130,246,0.3)]"
+            className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-primary/20 flex items-center justify-center glow-blue"
           >
             <span className="text-3xl">⚡</span>
           </motion.div>
 
           <h2 className="text-2xl font-bold text-foreground mb-2">AI Neural Scan</h2>
-          <p className="text-muted-foreground">
-            {billId === 'demo' ? 'Analyzing demo bill' : 'Analyzing your electricity bill'}
-          </p>
+          <p className="text-muted-foreground">Analyzing your electricity bill</p>
+
+          {/* Real progress bar */}
+          <div className="mt-6 h-2 bg-secondary rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-primary rounded-full"
+              animate={{ width: `${apiProgress}%` }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">{apiProgress}% complete</p>
         </motion.div>
 
         {/* Steps */}
@@ -264,16 +158,10 @@ const ProcessingScreen = ({ billId, onComplete, onError }: ProcessingScreenProps
               <span className={`text-sm transition-colors duration-300 ${
                 i <= currentStep ? 'text-foreground' : 'text-muted-foreground'
               }`}>
-                {step}
+                {step.label}
               </span>
               {i < currentStep && (
-                <motion.span 
-                  initial={{ scale: 0 }} 
-                  animate={{ scale: 1 }} 
-                  className="text-accent text-xs ml-auto"
-                >
-                  ✓
-                </motion.span>
+                <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-accent text-xs ml-auto">✓</motion.span>
               )}
             </motion.div>
           ))}

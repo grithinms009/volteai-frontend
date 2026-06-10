@@ -2,143 +2,112 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Upload, FileText, CheckCircle, X, Shield, Trash2, EyeOff, Zap } from "lucide-react";
 import { useState, useCallback } from "react";
 import { apiUpload } from "@/hooks/useApi";
+import { useCountry } from "@/hooks/useCountry";
 import { toast } from "sonner";
 
 interface UploadSectionProps {
-  onContinue: (billId: string, isDemo: boolean) => void;
-  providerId?: string;
-  countryCode?: string;
+  onStartAnalysis: (info: { billId: string; isDemo: boolean }) => void;
+  providerId?: string | null;
+  profileType?: string;
 }
 
-const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSectionProps) => {
+const UploadSection = ({ onStartAnalysis, providerId, profileType = "home" }: UploadSectionProps) => {
+  const { country } = useCountry();
   const [billFile, setBillFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploaded, setUploaded] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [billId, setBillId] = useState<string | null>(null);
+  const [isDemoFile, setIsDemoFile] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const simulateProgress = useCallback(() => {
+  const simulateUpload = useCallback((file: File) => {
+    setBillFile(file);
     setUploadProgress(0);
     const interval = setInterval(() => {
       setUploadProgress((prev) => {
-        if (prev >= 90) {
+        if (prev >= 100) {
           clearInterval(interval);
-          return 90;
+          setUploaded(true);
+          return 100;
         }
-        return prev + Math.random() * 15 + 5;
+        return prev + Math.random() * 18 + 5;
       });
-    }, 100);
-    return interval;
+    }, 120);
   }, []);
-
-  const handleUpload = useCallback(async (file: File) => {
-    setBillFile(file);
-    setIsUploading(true);
-    const progressInterval = simulateProgress();
-
-    try {
-      const userId = localStorage.getItem('userId');
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('userId', userId || '');
-      formData.append('profileType', 'home');
-      formData.append('countryCode', countryCode);
-      if (providerId) formData.append('providerId', providerId);
-
-      const response = await apiUpload('/api/bills/upload', formData);
-      
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-      setUploaded(true);
-      setBillId(response.billId);
-      toast.success('Bill uploaded successfully!');
-    } catch (err: any) {
-      clearInterval(progressInterval);
-      toast.error(err.message || 'Upload failed');
-      setBillFile(null);
-      setUploadProgress(0);
-    } finally {
-      setIsUploading(false);
-    }
-  }, [simulateProgress]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragOver(false);
       const file = e.dataTransfer.files[0];
-      if (file) {
-        // Validate file
-        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-          toast.error('Please upload a PDF, JPG, or PNG file');
-          return;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error('File size must be under 10MB');
-          return;
-        }
-        handleUpload(file);
-      }
+      if (file) simulateUpload(file);
     },
-    [handleUpload]
+    [simulateUpload]
   );
 
   const handleFileSelect = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
-      if (file) {
-        // Validate file
-        const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-        if (!validTypes.includes(file.type)) {
-          toast.error('Please upload a PDF, JPG, or PNG file');
-          return;
-        }
-        if (file.size > 10 * 1024 * 1024) {
-          toast.error('File size must be under 10MB');
-          return;
-        }
-        handleUpload(file);
-      }
+      if (file) simulateUpload(file);
     },
-    [handleUpload]
+    [simulateUpload]
   );
 
   const handleTryDemo = useCallback(() => {
-    setBillFile(new File(["demo"], "demo-electricity-bill.pdf", { type: "application/pdf" }));
-    setUploadProgress(100);
-    setUploaded(true);
-    setBillId('demo');
-    toast.success('Demo bill loaded!');
-  }, []);
+    const demoFile = new File(["demo"], "demo-electricity-bill.pdf", { type: "application/pdf" });
+    setIsDemoFile(true);
+    simulateUpload(demoFile);
+  }, [simulateUpload]);
 
   const clearFile = useCallback(() => {
     setBillFile(null);
     setUploaded(false);
     setUploadProgress(0);
-    setBillId(null);
+    setIsDemoFile(false);
   }, []);
 
-  const handleContinue = () => {
-    if (billId) {
-      onContinue(billId, billId === 'demo');
+  const handleContinue = useCallback(async () => {
+    if (!uploaded || !billFile) return;
+    if (isDemoFile) {
+      try { localStorage.setItem("lastBillId", "demo"); } catch {}
+      onStartAnalysis({ billId: "demo", isDemo: true });
+      return;
     }
-  };
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", billFile);
+      fd.append("profileType", profileType);
+      fd.append("countryCode", country.code);
+      if (providerId) fd.append("providerId", providerId);
+      const res = await apiUpload<{ billId: string; status: string }>("/api/bills/upload", fd);
+      try { localStorage.setItem("lastBillId", res.billId); } catch {}
+      onStartAnalysis({ billId: res.billId, isDemo: false });
+    } catch (err: any) {
+      // Backend unreachable (likely offline or mixed-content) — fall back to demo so the user can proceed.
+      toast.message("Backend unreachable — continuing in demo mode", {
+        description: "We'll show a sample analysis so you can preview the full flow.",
+      });
+      try { localStorage.setItem("lastBillId", "demo"); } catch {}
+      onStartAnalysis({ billId: "demo", isDemo: true });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [uploaded, billFile, isDemoFile, providerId, profileType, country.code, onStartAnalysis]);
 
   return (
-    <section className="relative py-8 sm:py-12">
+    <section className="wizard-section">
       <div className="container mx-auto px-4 max-w-xl">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
-          className="text-center mb-8"
+          className="wizard-title"
         >
-          <h2 className="text-2xl md:text-3xl font-bold tracking-tight mb-2 text-foreground">
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight mb-1 text-foreground">
             Upload Your Electricity Bill
           </h2>
-          <p className="text-muted-foreground text-sm">
+          <p className="text-muted-foreground text-xs">
             Drag & drop your bill to begin AI analysis
           </p>
         </motion.div>
@@ -147,7 +116,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
-          className="glass-card p-6 md:p-8"
+          className="glass-card p-4"
         >
           {/* Progress bar */}
           {billFile && !uploaded && (
@@ -172,7 +141,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
                 }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300 ${
+                className={`relative border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-300 ${
                   dragOver
                     ? "border-primary bg-primary/5"
                     : "border-primary/30 hover:border-primary/60"
@@ -185,14 +154,14 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
                   className="absolute inset-0 opacity-0 cursor-pointer"
                 />
                 <Upload
-                  className={`w-10 h-10 mx-auto mb-3 transition-colors ${
+                  className={`w-8 h-8 mx-auto mb-2 transition-colors ${
                     dragOver ? "text-primary" : "text-muted-foreground"
                   }`}
                 />
-                <p className="text-base font-semibold text-foreground mb-1">
+                <p className="text-sm font-semibold text-foreground mb-1">
                   Drop your electricity bill here
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs text-muted-foreground">
                   PDF, JPG or PNG • Max 10MB
                 </p>
               </motion.div>
@@ -201,7 +170,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
                 key="preview"
                 initial={{ opacity: 0, scale: 0.97 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="flex items-center gap-4 p-4 rounded-xl bg-secondary/50 border border-border"
+                className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50 border border-border"
               >
                 <motion.div
                   initial={{ scale: 1 }}
@@ -226,8 +195,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
                 </div>
                 <button
                   onClick={clearFile}
-                  disabled={isUploading}
-                  className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground disabled:opacity-50"
+                  className="p-2 rounded-lg hover:bg-secondary transition-colors text-muted-foreground"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -239,7 +207,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
           {!billFile && (
             <button
               onClick={handleTryDemo}
-              className="w-full mt-4 py-2.5 rounded-xl border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all flex items-center justify-center gap-2"
+              className="w-full mt-3 py-2.5 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all flex items-center justify-center gap-2"
             >
               <Zap className="w-3.5 h-3.5" />
               Try with a demo bill
@@ -247,7 +215,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
           )}
 
           {/* Trust indicators */}
-          <div className="grid grid-cols-3 gap-3 mt-6 pt-5 border-t border-border">
+          <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-border">
             {[
               { icon: Shield, label: "Encrypted upload" },
               { icon: Trash2, label: "Auto-deleted after analysis" },
@@ -265,8 +233,8 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
           {/* Continue */}
           <motion.button
             onClick={handleContinue}
-            disabled={!uploaded}
-            className={`w-full mt-6 py-3.5 rounded-xl font-semibold text-sm transition-all duration-300 ${
+            disabled={!uploaded || submitting}
+            className={`w-full mt-4 py-3 rounded-lg font-semibold text-sm transition-all duration-300 ${
               uploaded
                 ? "bg-primary text-primary-foreground shadow-[0_0_20px_hsla(217,91%,60%,0.15)] hover:brightness-110"
                 : "bg-secondary text-muted-foreground cursor-not-allowed"
@@ -274,7 +242,7 @@ const UploadSection = ({ onContinue, providerId, countryCode = 'IN' }: UploadSec
             whileHover={uploaded ? { scale: 1.01 } : {}}
             whileTap={uploaded ? { scale: 0.99 } : {}}
           >
-            {uploaded ? "Continue to Setup" : "Upload a bill to continue"}
+            {submitting ? "Uploading…" : uploaded ? "Continue to Setup" : "Upload a bill to continue"}
           </motion.button>
         </motion.div>
       </div>

@@ -102,11 +102,12 @@ interface AnalysisResult {
 
 interface ResultsDashboardProps {
   result: AnalysisResult;
-  billId: string | null;
+  billId?: string | null;
   onUnlock: () => void;
 }
 
-const ResultsDashboard = ({ result, billId, onUnlock }: ResultsDashboardProps) => {
+const ResultsDashboard = ({ result, billId: billIdProp, onUnlock }: ResultsDashboardProps) => {
+  const billId = billIdProp ?? localStorage.getItem('lastBillId');
   const [isDownloading, setIsDownloading] = useState(false);
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null);
   const isPaid = result.paid || false;
